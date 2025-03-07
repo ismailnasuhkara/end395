@@ -116,8 +116,9 @@ class END395Model:
                 for s in model.pallet_size
             )
             total_penalty = sum(
-                '''
-                    Burayı tamamlamak lazım.
-                '''
+                model.earliness_penalty[o] * model.pallet_order_match[i, o] * 
+                (model.order_due_date[o] - model.shipment_day[i])
+                for o in model.orders
+                for i in model.pallets
             )
             return vehicle_cost + total_penalty
