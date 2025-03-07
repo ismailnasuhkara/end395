@@ -40,8 +40,8 @@ class END395Model:
         self.model.pallet_size = Param(self.model.pallets, initialize=self.data['pallet_size'],
                                         doc="Size of each pallet")
         
-        self.model.pallet_availability_day = Param(self.model.pallets, initialize=self.data['pallet_availability_day'],
-                                                   doc="The days in which each pallet becomes available")
+        self.model.pallet_shipment_day = Param(self.model.pallets, initialize=self.data['pallet_shipment_day'],
+                                                   doc="The shipment day of each pallet")
         
         self.model.order_demand = Param(self.model.orders, initialize=self.data['order_demand'],
                                          doc="Number of products required for each order")
@@ -49,8 +49,8 @@ class END395Model:
         self.model.order_due_date = Param(self.model.orders, initialize=self.data['order_due_date'],
                                           doc="Due date of each order")
         
-        self.model.max_pallets_in_waiting_area = Param(initialize=self.data['max_pallets_in_waiting_area'],
-                                                       doc="Maximum number of pallets that can be stored in the waiting area")
+        self.model.warehouse_storage = Param(initialize=self.data['warehouse_storage'],
+                                                       doc="Warehouse storage capacity in terms of pallets")
         
         self.model.earliness_penalty = Param(self.model.orders, initialize=self.data['earliness_penalty'],
                                              doc="Earliness penalty cost of each order")
@@ -72,11 +72,11 @@ class END395Model:
     def createVariables(self):
         self.model.pallet_shipment = Var(self.model.pallets, self.model.planning_horizon, within=Binary)
 
-        self.model.owned_vehicles_used = Var(self.model.vehicle_types, self.model.planning_horizon, within=NonNegativeIntegers)
+        self.model.owned_vehicle_trips = Var(self.model.vehicle_types, self.model.planning_horizon, self.model.pallet_size, within=NonNegativeIntegers)
 
-        self.model.rented_vehicles = Var(self.model.vehicle_types, self.model.planning_horizon, within=NonNegativeIntegers)
+        self.model.rented_vehicle_trips = Var(self.model.vehicle_types, self.model.planning_horizon, self.model.pallet_size, within=NonNegativeIntegers)
 
-        self.model.pallet_used_for_order = Var(self.model.pallets, self.model.orders, self.model.planning_horizon, within=Binary)
+        self.model.pallet_order_match = Var(self.model.pallets, self.model.orders, self.model.planning_horizon, within=Binary)
 
         self.model.warehouse_storage = Var(self.model.pallets, self.model.planning_horizon, within=Binary)        
 
@@ -86,7 +86,13 @@ class END395Model:
                                         doc="Minimize total cost")
     
 
-    #def createConstraints(self):
+    def createConstraints(self):
+        self.model.constraints = ConstraintList()
+        '''
+            Buraya for loopları dizerek kısıtları yazacağız.
+            Her kısıtı self.model.constraints.add(expr=) ile ekleyeceğiz.
+            constraints'e index atmalı mıyız bilmiyorum.
+        '''  
     
 
     def solve(self, solver_name):
@@ -97,25 +103,21 @@ class END395Model:
         else:
             raise ValueError("Solver not supported. Use 'cplex' or 'gurobi'.")
 
-        results = solver.solve(self.model, tee=True)
+        results = solver.solve(self.model, tee=True) # tee here should print the results.
         return results
-
-
-    def display(self):
-        self.model.display()
 
 
     def total_cost(model):
             vehicle_cost = sum(
-                model.owned_vehicle_cost[k] * model.owned_vehicles_used[k, t] +
-                model.rented_vehicle_cost[k] * model.rented_vehicles[k, t]
+                model.owned_vehicle_cost[k] * model.owned_vehicle_trips[k, t, s] +
+                model.rented_vehicle_cost[k] * model.rented_vehicle_trips[k, t, s]
                 for k in model.vehicle_types
                 for t in model.planning_horizon
+                for s in model.pallet_size
             )
             total_penalty = sum(
-                model.earliness_penalty[o] * (model.order_due_date[o] - t) *
-                model.order_fulfilled[o, t]
-                for o in model.orders
-                for t in model.planning_horizon
+                '''
+                    Burayı tamamlamak lazım.
+                '''
             )
             return vehicle_cost + total_penalty

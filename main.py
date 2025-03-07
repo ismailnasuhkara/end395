@@ -4,4 +4,3 @@ data = {}
 
 model = END395Model(data)
 model.solve('gurobi')
-model.display()
