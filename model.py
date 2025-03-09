@@ -79,7 +79,7 @@ class END395Model:
         self.model.order_product_type = Param(self.model.orders, self.model.product_type,
                                                   doc="The map of orders listed by product type.")
 
-        self.model.pallet_product_type = Param(self.model.pallet, self.model.product_type,
+        self.model.pallet_product_type = Param(self.model.pallets, self.model.product_type,
                                                doc="The map of pallets listed by product type.")
         
 
@@ -103,7 +103,7 @@ class END395Model:
         self.model.constraint_1 = Constraint(self.model.pallets, rule=constraint_1)
 
         def constraint_2(model, i, t):
-            for t in range(1, model.release_day[i] - 1):
+            for t in range(1, model.pallet_release_day[i] - 1):
                 if model.is_shipped[i, t] != 0:
                     return False
             return True
@@ -111,8 +111,8 @@ class END395Model:
         self.model.constraint_2 = Constraint(self.model.pallets, rule=constraint_2)
 
         def constraint_3(model, t):
-            sum = sum(model.is_shipped[i, t] == 0 for i in model.pallets)
-            return sum <= model.warehouse_storage
+            total_shipped = sum(model.is_shipped[i, t] == 0 for i in model.pallets)
+            return total_shipped <= model.warehouse_storage
                 
         self.model.constraint_3 = Constraint(self.model.planning_horizon, rule=constraint_3)
 
@@ -120,7 +120,7 @@ class END395Model:
             daily_capacity = 0
             for k in model.vehicle_types:
                 for s in model.pallet_size:
-                    daily_capacity += model.capacity_calculator(k, s) * (model.owned_vehicle_trips[k, t, s] + model.rented_vehicle_trips[k, t, s])
+                    daily_capacity += model.capacity_calculator(model, k, s) * (model.owned_vehicle_trips[k, t, s] + model.rented_vehicle_trips[k, t, s])
             sum = sum(model.is_shipped[i, t] for i in model.pallets)
 
             if sum > daily_capacity:
@@ -132,9 +132,7 @@ class END395Model:
         
         def constraint_5(model, k, t):
             max_trips = 3 * model.owned_vehicles[k]
-            if model.owned_vehicle_trips[k, t, 1] + model.owned_vehicle_trips[k, t, 2] > max_trips:
-                return False
-            return True
+            return model.owned_vehicle_trips[k, t, 1] + model.owned_vehicle_trips[k, t, 2] <= max_trips
         
         self.model.constraint_5 = Constraint(self.model.vehicle_types, self.model.planning_horizon, rule=constraint_5)
 
@@ -161,6 +159,10 @@ class END395Model:
             raise ValueError("Solver not supported. Use 'cplex' or 'gurobi'.")
 
         results = solver.solve(self.model, tee=True) # tee here should print the results.
+        
+        if (results.solver.status != SolverStatus.ok) or (results.solver.termination_condition != TerminationCondition.optimal):
+            raise RuntimeError("Solver failed to find an optimal solution.")
+        
         return results
 
 
@@ -173,8 +175,8 @@ class END395Model:
                 for s in model.pallet_size
             )
             total_penalty = sum(
-                model.earliness_penalty[o] * model.pallet_order_match[i, o] * 
-                (model.order_due_date[o] - model.release_day[i])
+                model.earliness_penalty[o] * model.order_pallet_is_assigned[i, o] * 
+                (model.order_due_date[o] - model.pallet_release_day[i])
                 for o in model.orders
                 for i in model.pallets
             )
