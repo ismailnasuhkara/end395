@@ -73,9 +73,14 @@ class END395Model:
         self.model.owned_vehicles = Param(self.model.vehicle_types, initialize=self.data['owned_vehicles'],
                                         doc="Number of owned vehicles for each vehicle type.")
         
-        self.model.order_pallet_is_assigned = Param(self.model.pallets, self.model.planning_horizon, 
-                                                    initialize=self.data['orders'],
-                                                    doc="Tracks the pallets assigned to each order.")      
+        self.model.order_pallet_is_assigned = Param(self.model.pallets, self.model.planning_horizon, initialize=self.data['orders'],
+                                                    doc="Tracks the pallets assigned to each order.")     
+
+        self.model.order_product_type = Param(self.model.orders, self.model.product_type,
+                                                  doc="The map of orders listed by product type.")
+
+        self.model.pallet_product_type = Param(self.model.pallet, self.model.product_type,
+                                               doc="The map of pallets listed by product type.")
         
 
     def createVariables(self):
@@ -85,7 +90,6 @@ class END395Model:
 
         self.model.rented_vehicle_trips = Var(self.model.vehicle_types, self.model.planning_horizon, self.model.pallet_size, within=NonNegativeIntegers)
   
-
 
     def createObjectiveFunction(self):
         self.model.total_cost = Objective(rule=self.total_cost(self.model), sense=minimize,
@@ -134,10 +138,18 @@ class END395Model:
         
         self.model.constraint_5 = Constraint(self.model.vehicle_types, self.model.planning_horizon, rule=constraint_5)
 
-        def constraint_6(model):
-            return True
+        def constraint_6(model, p):
+            pallets_to_use = sum(
+                model.products_in_pallet[i] * sum(model.is_shipped[i, t] for t in model.planning_horizon) * model.pallet_product_type[i, p]
+                for i in model.pallets
+            )
+            order_to_fulfill = sum(
+                model.order_demand[o] * model.order_product_type[o, p]
+                for o in model.orders
+            )
+            return pallets_to_use >= order_to_fulfill
 
-        self.model.constraint_6 = Constraint(rule=constraint_6)
+        self.model.constraint_6 = Constraint(self.model.orders, self.model.product_type, rule=constraint_6)
 
 
     def solve(self, solver_name):
