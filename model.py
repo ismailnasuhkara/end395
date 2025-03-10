@@ -76,7 +76,7 @@ class END395Model:
         self.model.vehicle_capacity_80x120 = Param(self.model.vehicle_types, initialize=self.vehicles.set_index('Vehicle Type')['Capacity for pallet type 2'].to_dict(),
                                doc="Capacity of each vehicle type for 80x120 cm pallets")    
 
-        self.model.order_product_type = Param(self.model.orders, initialize=self.orders.set_index('Order ID')['Product Type'].to_dict(), within=Any,
+        self.model.order_product_type = Param(self.model.orders, initialize=self.orders.groupby('Order ID')['Product Type'].apply(list).to_dict(), within=Any,
                               doc="The map of orders listed by product type")
 
         self.model.pallet_product_type = Param(self.model.pallets, initialize=self.pallets.set_index('Pallet ID')['Product Type'].to_dict(), within=Any,
@@ -91,7 +91,7 @@ class END395Model:
 
         self.model.rented_vehicle_trips = Var(self.model.vehicle_types, self.model.planning_horizon, self.model.size_types, within=NonNegativeIntegers)
 
-        self.model.order_pallet_is_assigned = Var(self.model.pallets, self.model.orders, within=Binary)
+        self.model.order_pallet_match = Var(self.model.pallets, self.model.orders, within=Binary)
 
     def createObjectiveFunction(self):
         def total_cost(model):
@@ -103,7 +103,7 @@ class END395Model:
                 for s in model.size_types
             )
             total_penalty = sum(
-                model.earliness_penalty[o] * model.order_pallet_is_assigned[i, o] * 
+                model.earliness_penalty[o] * model.order_pallet_match[i, o] * 
                 (model.order_due_date[o] - model.pallet_release_day[i])
                 for o in model.orders
                 for i in model.pallets
@@ -131,7 +131,7 @@ class END395Model:
                 
         self.model.constraint_3 = Constraint(self.model.planning_horizon, rule=constraint_3)
 
-        def constraint_4(model, i, t):
+        def constraint_4(model, t):
             daily_capacity = 0
             for k in model.vehicle_types:
                 for s in model.size_types:
@@ -139,7 +139,7 @@ class END395Model:
             total = sum(model.is_shipped[i, t] for i in model.pallets)
             return total <= daily_capacity
         
-        self.model.constraint_4 = Constraint(self.model.pallets, self.model.planning_horizon, rule=constraint_4)
+        self.model.constraint_4 = Constraint(self.model.planning_horizon, rule=constraint_4)
         
         def constraint_5(model, k, t):
             max_trips = model.max_trips * model.owned_vehicles[k]
@@ -147,8 +147,15 @@ class END395Model:
         
         self.model.constraint_5 = Constraint(self.model.vehicle_types, self.model.planning_horizon, rule=constraint_5)
 
-        def constraint_6(model, i, o):
-            return model.pallet_product_type[i] == model.order_product_type[o]
+        def constraint_6(model, o):
+            return sum(model.order_pallet_match[i, o] for i in model.pallets if model.pallet_product_type[i] in model.order_product_type[o]) >= 1
+        
+        self.model.constraint_6 = Constraint(self.model.orders, rule=constraint_6)
+
+        def constraint_7(model, o):
+            return sum(model.order_pallet_match[i, o] for i in model.pallets) <= model.order_demand[o]
+        
+        self.model.constraint_7 = Constraint(self.model.orders, rule=constraint_7)
 
     def solve(self, solver_name):
         if solver_name == 'cplex':
