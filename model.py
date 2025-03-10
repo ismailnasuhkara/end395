@@ -126,7 +126,7 @@ class END395Model:
         self.model.constraint_2 = Constraint(self.model.pallets, rule=constraint_2)
 
         def constraint_3(model, t):
-            total_shipped = sum(model.is_shipped[i, t] == 0 for i in model.pallets)
+            total_shipped = sum(1 - model.is_shipped[i, t] for i in model.pallets)
             return total_shipped <= model.warehouse_storage
                 
         self.model.constraint_3 = Constraint(self.model.planning_horizon, rule=constraint_3)
