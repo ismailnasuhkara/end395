@@ -134,35 +134,21 @@ class END395Model:
         def constraint_4(model, i, t):
             daily_capacity = 0
             for k in model.vehicle_types:
-                for s in model.pallet_size:
-                    daily_capacity += model.capacity_calculator(model, k, s-1) * (model.owned_vehicle_trips[k, t, s-1] + model.rented_vehicle_trips[k, t, s-1])
-            sum = sum(model.is_shipped[i, t] for i in model.pallets)
-
-            if sum > daily_capacity:
-                return False
-            else:
-                return True
+                for s in model.size_types:
+                    daily_capacity += END395Model.capacity_calculator(model, k, s) * (model.owned_vehicle_trips[int(k), t, s] + model.rented_vehicle_trips[int(k), t, s])
+            total = sum(model.is_shipped[i, t] for i in model.pallets)
+            return total <= daily_capacity
         
         self.model.constraint_4 = Constraint(self.model.pallets, self.model.planning_horizon, rule=constraint_4)
         
         def constraint_5(model, k, t):
-            max_trips = model.max_trips * model.owned_vehicles[k-1]
+            max_trips = model.max_trips * model.owned_vehicles[k]
             return model.owned_vehicle_trips[k, t, 1] + model.owned_vehicle_trips[k, t, 2] <= max_trips
         
         self.model.constraint_5 = Constraint(self.model.vehicle_types, self.model.planning_horizon, rule=constraint_5)
 
-        def constraint_6(model, p):
-            pallets_to_use = sum(
-                model.products_in_pallet[i-1] * sum(model.is_shipped[i, t] for t in model.planning_horizon) * model.pallet_product_type[i, p]
-                for i in model.pallets
-            )
-            order_to_fulfill = sum(
-                model.order_demand[o] * model.order_product_type[o, p]
-                for o in model.orders
-            )
-            return pallets_to_use >= order_to_fulfill
-
-        self.model.constraint_6 = Constraint(self.model.orders, self.model.product_type, rule=constraint_6)
+        def constraint_6(model, i, o):
+            return model.pallet_product_type[i] == model.order_product_type[o]
 
     def solve(self, solver_name):
         if solver_name == 'cplex':
