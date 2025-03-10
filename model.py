@@ -177,3 +177,11 @@ class END395Model:
             return model.vehicle_capacity_100x120[k]
         else:
             return model.vehicle_capacity_80x120[k]
+        
+orders_1 = read_excel("ProjectPart1-Scenario1.xlsx", sheet_name="Orders")
+pallets_1 = read_excel("ProjectPart1-Scenario1.xlsx", sheet_name="Pallets")
+vehicles_1 = read_excel("ProjectPart1-Scenario1.xlsx", sheet_name="Vehicles")
+parameters_1 = read_excel("ProjectPart1-Scenario1.xlsx", sheet_name="Parameters")
+
+model_1 = END395Model(orders_1, pallets_1, vehicles_1, parameters_1)
+model_1.solve('gurobi')
