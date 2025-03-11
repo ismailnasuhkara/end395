@@ -25,7 +25,7 @@ class END395Model:
 
         self.model.pallets = Set(initialize=self.pallets['Pallet ID'],
                      doc="Set of pallets")
-        print(self.model.pallets)
+
         
         self.model.orders = Set(initialize=self.orders['Order ID'],
                     doc="Set of orders")
@@ -35,6 +35,8 @@ class END395Model:
         
         self.model.size_types = Set(initialize=self.pallets['Pallet Size'].unique(),
                                     doc="Set of pallet sizes")
+        
+        
 
     def createParameters(self):
         self.model.owned_vehicles = Param(self.model.vehicle_types, initialize=self.vehicles["Vehicle Type"].value_counts().to_frame("Count").to_dict()["Count"],
@@ -50,7 +52,7 @@ class END395Model:
         self.model.pallet_release_day = Param(self.model.pallets, initialize=self.pallets.set_index('Pallet ID')['Release Day'].to_dict(), within=PositiveIntegers,
                                doc="The release day of each pallet")
         
-        self.model.order_demand = Param(self.model.orders, initialize=self.orders.set_index('Order ID')['Demand Amount'].to_dict(),
+        self.model.order_demand = Param(self.model.orders, self.model.product_type, initialize=self.orders.set_index(["Order ID","Product Type"])['Demand Amount'].to_dict(),
                          doc="Number of products required for each order")
         
         self.model.order_due_date = Param(self.model.orders, initialize=self.orders.set_index('Order ID')['Due Date'].to_dict(),
@@ -84,6 +86,38 @@ class END395Model:
         
         self.model.max_trips = Param(initialize=self.parameters['Value'].iloc[1])
 
+        self.model.owned_vehicles.display()
+        print("\n")
+        self.model.products_in_pallet.display()
+        print("\n")
+        self.model.pallet_size.display()
+        print("\n")
+        self.model.pallet_release_day.display()
+        print("\n")
+        self.model.order_demand.display()
+        print("\n")
+        self.model.order_due_date.display()
+        print("\n")
+        self.model.warehouse_storage.display()
+        print("\n")
+        self.model.earliness_penalty.display()
+        print("\n")
+        self.model.owned_vehicle_cost.display()
+        print("\n")
+        self.model.rented_vehicle_cost.display()
+        print("\n")
+        self.model.vehicle_capacity_100x120.display()
+        print("\n")
+        self.model.vehicle_capacity_80x120.display()
+        print("\n")
+        self.model.order_product_type.display()
+        print("\n")
+        self.model.pallet_product_type.display()
+        print("\n")
+        self.model.max_trips.display()
+        print("\n")
+        
+
     def createVariables(self):
         self.model.is_shipped = Var(self.model.pallets, self.model.planning_horizon, within=Binary)
 
@@ -114,6 +148,7 @@ class END395Model:
                                         doc="Minimize total cost")
     
     def createConstraints(self):
+
         def constraint_1(model, i):
             return sum(model.is_shipped[i, t] for t in model.planning_horizon) == 1
             
@@ -152,10 +187,10 @@ class END395Model:
         
         self.model.constraint_6 = Constraint(self.model.orders, rule=constraint_6)
 
-        def constraint_7(model, o):
-            return sum(model.order_pallet_match[i, o] for i in model.pallets) <= model.order_demand[o]
+#        def constraint_7(model, o):
+ #           return sum(model.order_pallet_match[i, o] for i in model.pallets) <= model.order_demand[o]
         
-        self.model.constraint_7 = Constraint(self.model.orders, rule=constraint_7)
+#        self.model.constraint_7 = Constraint(self.model.orders, rule=constraint_7)
 
     def solve(self, solver_name):
         if solver_name == 'cplex':
