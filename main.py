@@ -1,5 +1,6 @@
 from model import END395Model
 import pandas as pd
+import io
 
 orders_1 = pd.read_excel("ProjectPart1-Scenario1.xlsx", sheet_name="Orders")
 pallets_1 = pd.read_excel("ProjectPart1-Scenario1.xlsx", sheet_name="Pallets")
@@ -9,7 +10,14 @@ parameters_1 = pd.read_excel("ProjectPart1-Scenario1.xlsx", sheet_name="Paramete
 
 
 model_1 = END395Model(orders_1, pallets_1, vehicles_1, parameters_1)
+
+output = io.StringIO()
+model_1.pprint(output)
+text = output.getvalue()
+output.close()
+
+with open("check.txt", "w") as f:
+    f.write(text)
+
+
 #model_1.solve('gurobi')
-
-
-

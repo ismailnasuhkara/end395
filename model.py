@@ -84,48 +84,18 @@ class END395Model:
         self.model.pallet_product_type = Param(self.model.pallets, initialize=self.pallets.set_index('Pallet ID')['Product Type'].to_dict(), within=Any,
                                doc="The map of pallets listed by product type")
         
-        self.model.max_trips = Param(initialize=self.parameters['Value'].iloc[1])
-
-        self.model.owned_vehicles.display()
-        print("\n")
-        self.model.products_in_pallet.display()
-        print("\n")
-        self.model.pallet_size.display()
-        print("\n")
-        self.model.pallet_release_day.display()
-        print("\n")
-        self.model.order_demand.display()
-        print("\n")
-        self.model.order_due_date.display()
-        print("\n")
-        self.model.warehouse_storage.display()
-        print("\n")
-        self.model.earliness_penalty.display()
-        print("\n")
-        self.model.owned_vehicle_cost.display()
-        print("\n")
-        self.model.rented_vehicle_cost.display()
-        print("\n")
-        self.model.vehicle_capacity_100x120.display()
-        print("\n")
-        self.model.vehicle_capacity_80x120.display()
-        print("\n")
-        self.model.order_product_type.display()
-        print("\n")
-        self.model.pallet_product_type.display()
-        print("\n")
-        self.model.max_trips.display()
-        print("\n")
-        
+        self.model.max_trips = Param(initialize=self.parameters['Value'].iloc[1])    
 
     def createVariables(self):
-        self.model.is_shipped = Var(self.model.pallets, self.model.planning_horizon, within=Binary)
+        self.model.is_shipped = Var(self.model.pallets, self.model.planning_horizon, domain=Binary)
 
-        self.model.owned_vehicle_trips = Var(self.model.vehicle_types, self.model.planning_horizon, self.model.size_types, within=NonNegativeIntegers)
+        self.model.owned_vehicle_trips = Var(self.model.vehicle_types, self.model.planning_horizon, self.model.size_types, domain=NonNegativeIntegers, initialize=0)
 
-        self.model.rented_vehicle_trips = Var(self.model.vehicle_types, self.model.planning_horizon, self.model.size_types, within=NonNegativeIntegers)
+        self.model.rented_vehicle_trips = Var(self.model.vehicle_types, self.model.planning_horizon, self.model.size_types, domain=NonNegativeIntegers, initialize=0)
 
-        self.model.order_pallet_match = Var(self.model.pallets, self.model.orders, within=Binary)
+
+
+        self.model.order_pallet_match = Var(self.model.pallets, self.model.orders, within=Binary, initialize=0)
 
     def createObjectiveFunction(self):
         def total_cost(model):
@@ -146,47 +116,44 @@ class END395Model:
         
         self.model.total_cost = Objective(rule=total_cost, sense=minimize,
                                         doc="Minimize total cost")
+        
+        #self.model.total_cost.display()
     
     def createConstraints(self):
 
-        def constraint_1(model, i):
-            return sum(model.is_shipped[i, t] for t in model.planning_horizon) == 1
-            
-        self.model.constraint_1 = Constraint(self.model.pallets, rule=constraint_1)
+        self.model.constraint_list = ConstraintList()
 
-        def constraint_2(model, i):
-            release_day = model.pallet_release_day[i]
-            return sum(model.is_shipped[i, t] for t in range(1, release_day+1)) == 0
-        
-        self.model.constraint_2 = Constraint(self.model.pallets, rule=constraint_2)
+        for i in self.model.pallets:
+            self.model.constraint_list.add(expr=sum(self.model.is_shipped[i,t] for t in self.model.planning_horizon) == 1)
 
-        def constraint_3(model, t):
-            total_shipped = sum(1 - model.is_shipped[i, t] for i in model.pallets)
-            return total_shipped <= model.warehouse_storage
-                
-        self.model.constraint_3 = Constraint(self.model.planning_horizon, rule=constraint_3)
+        for i in self.model.pallets:
+            self.model.constraint_list.add(expr=sum(self.model.is_shipped[i,t] for t in range(1, self.model.pallet_release_day[i]+1)) == 0)
 
-        def constraint_4(model, t):
-            daily_capacity = 0
-            for k in model.vehicle_types:
-                for s in model.size_types:
-                    daily_capacity += END395Model.capacity_calculator(model, k, s) * (model.owned_vehicle_trips[int(k), t, s] + model.rented_vehicle_trips[int(k), t, s])
-            total = sum(model.is_shipped[i, t] for i in model.pallets)
-            return total <= daily_capacity
-        
-        self.model.constraint_4 = Constraint(self.model.planning_horizon, rule=constraint_4)
-        
-        def constraint_5(model, k, t):
-            max_trips = model.max_trips * model.owned_vehicles[k]
-            return model.owned_vehicle_trips[k, t, 1] + model.owned_vehicle_trips[k, t, 2] <= max_trips
-        
-        self.model.constraint_5 = Constraint(self.model.vehicle_types, self.model.planning_horizon, rule=constraint_5)
+        for t in self.model.planning_horizon:
+            self.model.constraint_list.add(expr=sum(1 - self.model.is_shipped[i,t] for i in self.model.pallets) <= self.model.warehouse_storage)
 
-        def constraint_6(model, o):
-            return sum(model.order_pallet_match[i, o] for i in model.pallets if model.pallet_product_type[i] in model.order_product_type[o]) >= 1
-        
-        self.model.constraint_6 = Constraint(self.model.orders, rule=constraint_6)
+        # Something is wrong here
+        for t in self.model.planning_horizon:
+            self.model.constraint_list.add(expr=sum(self.model.is_shipped[i,t] for i in self.model.pallets) <= sum(
+                self.capacity_calculator(k, s) * (self.model.owned_vehicle_trips[int(k),t,s] + self.model.rented_vehicle_trips[int(k),t,s])
+                for s in self.model.size_types  
+                for k in self.model.vehicle_types
+            ))
 
+        for t in self.model.planning_horizon:
+            for k in self.model.vehicle_types:
+                self.model.constraint_list.add(expr=self.model.owned_vehicle_trips[k,t,1] + self.model.owned_vehicle_trips[k,t,2] <= self.model.max_trips * self.model.owned_vehicles[k])
+
+        for o in self.model.orders:
+            self.model.constraint_list.add(expr=sum(self.model.order_pallet_match[i,o] for i in self.model.pallets if self.model.pallet_product_type[i] in self.model.order_product_type[o]) >= 1)
+
+        #self.model.constraint_list.display()
+        """
+        for c in self.model.component_objects(Constraint, active=True):
+            print(f"Constraint: {c.name}")
+            for index in c:
+                print(f"  {index}: {c[index].expr}")
+        """
 #        def constraint_7(model, o):
  #           return sum(model.order_pallet_match[i, o] for i in model.pallets) <= model.order_demand[o]
         
@@ -200,15 +167,33 @@ class END395Model:
         else:
             raise ValueError("Solver not supported. Use 'cplex' or 'gurobi'.")
 
-        results = solver.solve(self.model, tee=True) # tee here should print the results.
+        results = solver.solve(self.model, tee=True)
+
+        if(results.solver.termination_condition == TerminationCondition.infeasible):
+            self.model.write('infeasible.lp')
+            import gurobipy as gp
+
+            gurobi_model = gp.read('infeasible.lp')
+            gurobi_model.computeIIS()
+            gurobi_model.write('infeasible.ilp')
+
+            for constr in gurobi_model.getConstrs():
+                print(f"Constraint: {constr}")
+
+            #for var in gurobi_model.getVars():
+            #    print(f"Var: {var}, IIS Lower Bound: {var.IISLB}, IIS Upper Bound: {var.IISUB}")
+
         
         if (results.solver.status != SolverStatus.ok) or (results.solver.termination_condition != TerminationCondition.optimal):
             raise RuntimeError("Solver failed to find an optimal solution.")
         
         return results
     
-    def capacity_calculator(model, k, s):
+    def capacity_calculator(self, k, s):
         if s == 1:
-            return model.vehicle_capacity_100x120[k]
+            return self.model.vehicle_capacity_100x120[k]
         else:
-            return model.vehicle_capacity_80x120[k]
+            return self.model.vehicle_capacity_80x120[k]
+        
+    def pprint(self, output):
+        self.model.pprint(ostream=output)
