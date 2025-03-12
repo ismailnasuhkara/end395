@@ -74,6 +74,8 @@ class END395Model:
         self.model.vehicle_capacity_100x120 = Param(self.model.vehicle_types, initialize=self.vehicles.set_index('Vehicle Type')['Capacity for pallet type 1'].to_dict(),
                                 doc="Capacity of each vehicle type for 100x120 cm pallets")
         
+        #self.model.vehicle_capacity_100x120.display()
+        
         # Truck = 33, Lorry = 18, Van = 8
         self.model.vehicle_capacity_80x120 = Param(self.model.vehicle_types, initialize=self.vehicles.set_index('Vehicle Type')['Capacity for pallet type 2'].to_dict(),
                                doc="Capacity of each vehicle type for 80x120 cm pallets")    
@@ -96,9 +98,7 @@ class END395Model:
         self.model.order_pallet_match = Var(self.model.pallets, self.model.orders, within=Binary, initialize=0)
 
     def createObjectiveFunction(self):
-        print(self.model.owned_vehicle_cost.extract_values())
-        print(self.model.rented_vehicle_cost.extract_values())
-        print(self.model.earliness_penalty.extract_values())
+
         def total_cost(model):
             vehicle_cost = sum(
                 model.owned_vehicle_cost[k] * model.owned_vehicle_trips[int(k), t, int(s)] +
@@ -134,10 +134,10 @@ class END395Model:
             else:
                 self.model.constraint_list.add(Constraint.Feasible)
 
-        """
+        
         for t in self.model.planning_horizon:
-            self.model.constraint_list.add(expr=sum(1 - self.model.is_shipped[i,t] for i in self.model.pallets) <= self.model.warehouse_storage)
-        """
+            self.model.constraint_list.add(expr=sum((1 - self.model.is_shipped[i,t]) for i in self.model.pallets) <= self.model.warehouse_storage)
+        
         
         # Something is wrong here
         for t in self.model.planning_horizon:
@@ -171,6 +171,10 @@ class END395Model:
             raise ValueError("Solver not supported. Use 'cplex' or 'gurobi'.")
 
         results = solver.solve(self.model, tee=True)
+        with open("solution.txt", "w") as f:
+            for v in self.model.component_objects(Var, active=True):
+                for index in v:
+                    f.write(f"{v[index].name} = {v[index].value}\n")
 
         """
         if(results.solver.termination_condition == TerminationCondition.infeasible):
