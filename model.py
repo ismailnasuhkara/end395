@@ -1,5 +1,5 @@
 from pyomo.environ import *
-from pandas import *
+import pandas as pd
 
 class END395Model:
     def __init__(self, orders, pallets, vehicles, parameters):
@@ -87,17 +87,18 @@ class END395Model:
         self.model.max_trips = Param(initialize=self.parameters['Value'].iloc[1])    
 
     def createVariables(self):
-        self.model.is_shipped = Var(self.model.pallets, self.model.planning_horizon, domain=Binary)
+        self.model.is_shipped = Var(self.model.pallets, self.model.planning_horizon, domain=Binary, initialize=0)
 
         self.model.owned_vehicle_trips = Var(self.model.vehicle_types, self.model.planning_horizon, self.model.size_types, domain=NonNegativeIntegers, initialize=0)
 
         self.model.rented_vehicle_trips = Var(self.model.vehicle_types, self.model.planning_horizon, self.model.size_types, domain=NonNegativeIntegers, initialize=0)
 
-
-
         self.model.order_pallet_match = Var(self.model.pallets, self.model.orders, within=Binary, initialize=0)
 
     def createObjectiveFunction(self):
+        print(self.model.owned_vehicle_cost.extract_values())
+        print(self.model.rented_vehicle_cost.extract_values())
+        print(self.model.earliness_penalty.extract_values())
         def total_cost(model):
             vehicle_cost = sum(
                 model.owned_vehicle_cost[k] * model.owned_vehicle_trips[int(k), t, int(s)] +
@@ -111,6 +112,7 @@ class END395Model:
                 (model.order_due_date[o] - model.pallet_release_day[i])
                 for o in model.orders
                 for i in model.pallets
+                if model.order_due_date[o] >= model.pallet_release_day[i]
             )
             return vehicle_cost + total_penalty
         
@@ -127,11 +129,16 @@ class END395Model:
             self.model.constraint_list.add(expr=sum(self.model.is_shipped[i,t] for t in self.model.planning_horizon) == 1)
 
         for i in self.model.pallets:
-            self.model.constraint_list.add(expr=sum(self.model.is_shipped[i,t] for t in range(1, self.model.pallet_release_day[i]+1)) == 0)
+            if self.model.pallet_release_day[i] > 1:
+                self.model.constraint_list.add(expr=sum(self.model.is_shipped[i,t] for t in range(1, int(self.model.pallet_release_day[i]))) == 0)
+            else:
+                self.model.constraint_list.add(Constraint.Feasible)
 
+        """
         for t in self.model.planning_horizon:
             self.model.constraint_list.add(expr=sum(1 - self.model.is_shipped[i,t] for i in self.model.pallets) <= self.model.warehouse_storage)
-
+        """
+        
         # Something is wrong here
         for t in self.model.planning_horizon:
             self.model.constraint_list.add(expr=sum(self.model.is_shipped[i,t] for i in self.model.pallets) <= sum(
@@ -154,10 +161,6 @@ class END395Model:
             for index in c:
                 print(f"  {index}: {c[index].expr}")
         """
-#        def constraint_7(model, o):
- #           return sum(model.order_pallet_match[i, o] for i in model.pallets) <= model.order_demand[o]
-        
-#        self.model.constraint_7 = Constraint(self.model.orders, rule=constraint_7)
 
     def solve(self, solver_name):
         if solver_name == 'cplex':
@@ -169,6 +172,7 @@ class END395Model:
 
         results = solver.solve(self.model, tee=True)
 
+        """
         if(results.solver.termination_condition == TerminationCondition.infeasible):
             self.model.write('infeasible.lp')
             import gurobipy as gp
@@ -182,7 +186,7 @@ class END395Model:
 
             #for var in gurobi_model.getVars():
             #    print(f"Var: {var}, IIS Lower Bound: {var.IISLB}, IIS Upper Bound: {var.IISUB}")
-
+            """
         
         if (results.solver.status != SolverStatus.ok) or (results.solver.termination_condition != TerminationCondition.optimal):
             raise RuntimeError("Solver failed to find an optimal solution.")
