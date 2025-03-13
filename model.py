@@ -26,7 +26,7 @@ model.order_demand = Param(model.orders, model.product_type, initialize=orders.s
 model.order_due_date = Param(model.orders, initialize=orders.set_index('Order ID')['Due Date'].to_dict(), doc="Due date of each order")
 model.warehouse_storage = Param(initialize=parameters['Value'].iloc[2], doc="Warehouse storage capacity in terms of pallets")
 model.earliness_penalty = Param(model.orders, initialize=orders.set_index('Order ID')['Earliness Penalty'].to_dict(), doc="Earliness penalty cost of each order")
-model.owned_vehicle_cost = Param(model.vehicle_types, initialize=vehicles.set_index('Vehicle Type')['Fixed Cost (c_k)'].to_dict(), doc="Delivery cost of each owned vehicle")
+model.owned_vehicle_cost = Param(model.vehicles, initialize=vehicles.set_index('Vehicle ID')['Fixed Cost (c_k)'].to_dict(), doc="Delivery cost of each owned vehicle")
 model.rented_vehicle_cost = Param(model.vehicle_types, initialize=vehicles.set_index('Vehicle Type')['Variable Cost (c\'_k)'].to_dict(), doc="Delivery cost of each rented vehicle")    
 # Truck = 22, Lorry = 12, Van = 6
 model.vehicle_capacity_100x120 = Param(model.vehicles, initialize=vehicles.set_index('Vehicle ID')['Capacity for pallet type 1'].to_dict(), doc="Capacity of each vehicle type for 100x120 cm pallets")
@@ -50,7 +50,11 @@ model.is_rented = Var(model.rentable, domain=Binary)
 model.rented_type = Var(model.rentable, domain=model.vehicle_types)
 model.rented_vehicle_has_pallet = Var(model.pallets, model.rentable, domain=Binary)
 
-# Objective Function
+# Objective Function,
+def total_cost():
+    owned_vehicle_cost = sum(owned_vehicle_cost[v] * model.number_of_trips[v,t] for v in model.vehicles for t in model.planning_horizon)
+    total_penalty = sum(model.earliness_penalty[o] * model.pallet_used_on_order[i, o] * (model.order_due_date[o] - model.pallet_release_day[i]) for o in model.orders for i in model.pallets if model.order_due_date[o] >= model.pallet_release_day[i])
+
 model.total_cost
 
 # Constraints
@@ -110,6 +114,9 @@ def constraint_9(i, rv):
      return model.rented_vehicle_has_pallet[i, rv] <= model.is_rented[rv]
 model.constraint_9 = Constraint(model.pallets, model.rentable, rule=constraint_9)
 
+def constraint_10(i,o):
+    return model.pallet_used_on_order[i,o] * model.pallet_release_day[i] <= model.order_due_date[o]
+model.constraint_10 = Constraint(model.pallets, model.orders, rule=constraint_10)
 
 def owned_capacity_calculator(v, s):
         if s == 1:
