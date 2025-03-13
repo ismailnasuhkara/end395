@@ -36,12 +36,12 @@ model.pallet_product_type = Param(model.pallets, initialize=pallets.set_index('P
 model.vehicle_type = Param(model.vehicles, initialize=pallets.set_index('Vehicle ID')['Vehicle Type'].to_dict(), within=Any, doc="The type of vehicle")
 model.max_trips = Param(initialize=parameters['Value'].iloc[1], doc="The max number of trips allowed to each owned vehicle")
 
-
 # Variables
 model.is_shipped = Var(model.pallets, model.planning_horizon, domain=Binary)
 model.pallet_used_on_order = Var(model.pallets, model.orders, model.product_type, domain=Binary)
 model.vehicle_has_pallet = Var(model.pallets, model.vehicles, domain=Binary)
 model.number_of_trips = Var(model.vehicles, model.planning_horizon, domain=NonNegativeIntegers)
+
 # Constraints
 
 
