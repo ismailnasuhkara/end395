@@ -42,7 +42,17 @@ model.is_shipped = Var(model.pallets, model.planning_horizon, domain=Binary)
 model.pallet_used_on_order = Var(model.pallets, model.orders, model.product_type, domain=Binary)
 model.vehicle_has_pallet = Var(model.pallets, model.vehicles, domain=Binary)
 model.number_of_trips = Var(model.vehicles, model.planning_horizon, domain=NonNegativeIntegers)
+
 # Constraints
 
+def constraint_1(i):
+    return sum(model.is_shipped[i,t] for t in model.planning_horizon) == 1
+model.constraint_1 = Constraint(model.pallets, rule=constraint_1)
 
-
+def constraint_2(i):
+    release_day = model.pallet_release_day[i]
+    if release_day == 1:
+        return Constraint.Feasible
+    else:
+        return sum(model.is_shipped for t in range(1, release_day)) == 0
+model.constraint_2 = Constraint(model.pallets, rule=constraint_2)
