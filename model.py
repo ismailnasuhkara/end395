@@ -73,6 +73,9 @@ def capacity_calculator(v, s):
         else:
             return model.vehicle_capacity_80x120[v]
         
+def constraint_7(o,j):
+    return sum(model.products_in_pallet[i] * model.pallet_used_on_order[i,o,j] for i in model.pallets) >= model.order_demand[o,j]
+model.constraint_7 = Constraint(model.orders, model.product_type, rule=constraint_7)
 
 def constraint_8(i, j):
     return sum(model.pallet_used_on_order[i,o,j] for o in model.orders if (model.pallet_product_type[i] > j or model.pallet_product_type < j)) <= 0
