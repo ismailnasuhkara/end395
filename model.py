@@ -14,6 +14,7 @@ model.pallets = Set(initialize=pallets['Pallet ID'], doc="Set of pallets")
 model.orders = Set(initialize=orders['Order ID'], doc="Set of orders")
 model.product_type = Set(initialize=orders['Product Type'].unique(), doc="Set of product types") 
 model.vehicles = Set(initialize=vehicles["Vehicle ID"], doc="Set of owned vehicles")
+model.rentable = Set(initialize=range(1, 100), doc="Set of rentable vehicles")
 
 # Parameters
 model.products_in_pallet = Param(model.pallets, initialize=pallets.set_index('Pallet ID')['Amount'].to_dict(), doc="Number of products that can be stored in each pallet")
@@ -33,14 +34,19 @@ model.vehicle_capacity_80x120 = Param(model.vehicles, initialize=vehicles.set_in
 model.order_product_type = Param(model.orders, initialize=orders.groupby('Order ID')['Product Type'].apply(list).to_dict(), within=Any, doc="The map of orders listed by product type")
 model.pallet_product_type = Param(model.pallets, initialize=pallets.set_index('Pallet ID')['Product Type'].to_dict(), within=Any, doc="The map of pallets listed by product type")
 model.vehicle_type = Param(model.vehicles, initialize=pallets.set_index('Vehicle ID')['Vehicle Type'].to_dict(), within=Any, doc="The type of vehicle")
-model.max_trips = Param(initialize=parameters['Value'].iloc[1], doc="The max number of trips allowed to each owned vehicle")
+model.max_trips = Param(initialize=parameters['Value'].iloc[1], doc="The max number of trips allowed to each owned vehicle per day")
 
 # Variables
 model.is_shipped = Var(model.pallets, model.planning_horizon, domain=Binary)
 model.pallet_used_on_order = Var(model.pallets, model.orders, model.product_type, domain=Binary)
-model.vehicle_has_pallet = Var(model.pallets, model.vehicles, domain=Binary)
+model.owned_vehicle_has_pallet = Var(model.pallets, model.vehicles, domain=Binary)
 model.number_of_trips = Var(model.vehicles, model.planning_horizon, domain=NonNegativeIntegers)
+model.is_rented = Var(model.rentable, domain=Binary)
+model.rented_type = Var(model.rentable, domain=model.vehicle_types)
+model.rented_vehicle_has_pallet = Var(model.pallets, model.rentable, domain=Binary)
 
+# Objective Function
+model.total_cost
 
 # Constraints
 def constraint_1(i):
@@ -68,10 +74,8 @@ def constraint_4_2(v,t):
 model.constraint_4_2 = Constraint(model.vehicles, model.planning_horizon, rule=constraint_4_2)
 
 def constraint_5(i,j,v):
-     if i != j:
-        return (model.vehicle_has_pallet[i,v] * model.vehicle_has_pallet[j,v]) * (model.pallet_size[i] - model.pallet_size[j])
-     else:
-         return Constraint.Feasible
+        return (model.owned_vehicle_has_pallet[i,v] * model.owned_vehicle_has_pallet[j,v]) * (model.pallet_size[i] - model.pallet_size[j])
+
 model.constraint_5 = Constraint(model.pallets, model.pallets, model.vehicles, rule=constraint_5)
 
 def capacity_calculator(v):
