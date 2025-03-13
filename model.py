@@ -48,14 +48,21 @@ model.owned_vehicle_has_pallet = Var(model.pallets, model.vehicles, domain=Binar
 model.number_of_trips = Var(model.vehicles, model.planning_horizon, domain=NonNegativeIntegers)
 model.is_rented = Var(model.rentable, domain=Binary)
 model.rented_type = Var(model.rentable, domain=model.vehicle_types)
-model.rented_vehicle_has_pallet = Var(model.pallets, model.rentable, domain=Binary)
+model.rented_vehicle_has_pallet = Var(model.pallets, model.rentable, model.planning_horizon, domain=Binary)
+model.rented_vehicle_trips = Var(model.rentable, model.planning_horizon, domain=NonNegativeIntegers)
 
 # Objective Function,
 def total_cost():
-    owned_vehicle_cost = sum(owned_vehicle_cost[v] * model.number_of_trips[v,t] for v in model.vehicles for t in model.planning_horizon)
+    owned_vehicle_cost = sum(model.owned_vehicle_cost[v] * model.number_of_trips[v,t] for v in model.vehicles for t in model.planning_horizon)
+    rented_vehicle_cost = 0
+    for rv in model.rentable:
+        rented_type = model.rented_vehicle_type[rv]
+        rented_vehicle_cost += sum(model.rented_vehicle_cost[rented_type] * model.rented_vehicle_trips[rv, t] for t in model.planning_horizon)
     total_penalty = sum(model.earliness_penalty[o] * model.pallet_used_on_order[i, o] * (model.order_due_date[o] - model.pallet_release_day[i]) for o in model.orders for i in model.pallets if model.order_due_date[o] >= model.pallet_release_day[i])
 
-model.total_cost
+    return owned_vehicle_cost + rented_vehicle_cost + total_penalty
+
+model.total_cost = Objective(rule=total_cost, sense=minimize) 
 
 # Constraints
 def constraint_1(i):
@@ -83,20 +90,20 @@ def constraint_4_2(v,t):
 model.constraint_4_2 = Constraint(model.vehicles, model.planning_horizon, rule=constraint_4_2)
 
 def constraint_4_3(rv,t):
-     return sum(model.is_shipped[i,t] * model.rented_vehicle_has_pallet[i,rv] for i in model.pallets if model.pallet_size[i] == 1) <= rented_capacity_calculator(rv,1)
+     return sum(model.is_shipped[i,t] * model.rented_vehicle_has_pallet[i,rv, t] for i in model.pallets if model.pallet_size[i] == 1) <= rented_capacity_calculator(rv,1)
 model.constraint_4_3 = Constraint(model.rentable, model.planning_horizon, rule=constraint_4_3)
 
 def constraint_4_4(rv,t):
-     return sum(model.is_shipped[i,t] * model.rented_vehicle_has_pallet[i,rv] for i in model.pallets if model.pallet_size[i] == 2) <= rented_capacity_calculator(rv,1)
+     return sum(model.is_shipped[i,t] * model.rented_vehicle_has_pallet[i,rv,t] for i in model.pallets if model.pallet_size[i] == 2) <= rented_capacity_calculator(rv,1)
 model.constraint_4_4 = Constraint(model.rentable, model.planning_horizon, rule=constraint_4_4)
 
 def constraint_5_1(i, j, v):
     return model.owned_vehicle_has_pallet[i, v] * model.owned_vehicle_has_pallet[j, v] * (model.pallet_size[i] - model.pallet_size[j]) == 0
 model.constraint_5_1 = Constraint(model.pallets, model.pallets, model.vehicles, rule=constraint_5_1)
 
-def constraint_5_2(i, j, rv):
-    return model.rented_vehicle_has_pallet[i, rv] * model.rented_vehicle_has_pallet[j, rv] * (model.pallet_size[i] - model.pallet_size[j]) == 0
-model.constraint_5_2 = Constraint(model.pallets, model.pallets, model.rentable, rule=constraint_5_2)
+def constraint_5_2(i, j, rv, t):
+    return model.rented_vehicle_has_pallet[i, rv] * model.rented_vehicle_has_pallet[j, rv, t] * (model.pallet_size[i] - model.pallet_size[j]) == 0
+model.constraint_5_2 = Constraint(model.pallets, model.pallets, model.rentable, model.planning_horizon, rule=constraint_5_2)
 
 def constraint_6(v,t):
     return model.number_of_trips[v, t] <= model.max_trips
@@ -117,6 +124,23 @@ model.constraint_9 = Constraint(model.pallets, model.rentable, rule=constraint_9
 def constraint_10(i,o):
     return model.pallet_used_on_order[i,o] * model.pallet_release_day[i] <= model.order_due_date[o]
 model.constraint_10 = Constraint(model.pallets, model.orders, rule=constraint_10)
+
+def constraint_11_1(rv, t):
+    total_pallets = sum(model.pallet_used_on_order[i, o] * model.rented_vehicle_has_pallet[i, rv ,t] for o in model.orders for i in model.pallets if model.pallet_size[i] == 1)
+    return model.rented_vehicle_trips >= total_pallets / rented_capacity_calculator(rv, 1)
+
+
+def constraint_11_2(rv, t):
+    total_pallets = sum(model.pallet_used_on_order[i, o] * model.rented_vehicle_has_pallet[i, rv ,t] for o in model.orders for i in model.pallets if model.pallet_size[i] == 2)
+    return model.rented_vehicle_trips >= total_pallets / rented_capacity_calculator(rv, 2)
+
+def constraint_11_3(v, t):
+    total_pallets = sum(model.pallet_used_on_order[i, o] * model.owned_vehicle_has_pallet[i, v ,t] for o in model.orders for i in model.pallets if model.pallet_size[i] == 1)
+    return model.number_of_trips >= total_pallets / owned_capacity_calculator(v, 1)
+
+def constraint_11_4(v, t):
+    total_pallets = sum(model.pallet_used_on_order[i, o] * model.owned_vehicle_has_pallet[i, v ,t] for o in model.orders for i in model.pallets if model.pallet_size[i] == 2)
+    return model.number_of_trips >= total_pallets / owned_capacity_calculator(v, 2)
 
 def owned_capacity_calculator(v, s):
         if s == 1:
