@@ -59,9 +59,13 @@ def constraint_3():
     return sum(1 - sum(model.is_shipped[i,] for t in model.planning_horizon if t >= model.pallet_release_day[i]) for i in model.pallets) <= model.warehouse_storage
 model.constraint_3 = Constraint(rule=constraint_3)
 
-def constraint_4(v,t):
-    return sum(model.is_shippped[i,t] * model.vehicle_has_pallet[i,v] for i in model.pallets) <= capacity_calculator(v)
-model.constraint_4 = Constraint(model.vehicles, model.planning_horizon, rule=constraint_4)
+def constraint_4_1(v,t):
+    return sum(model.is_shippped[i,t] * model.vehicle_has_pallet[i,v] for i in model.pallets if model.pallet_size[i] == 1) <= capacity_calculator(v,1)
+model.constraint_4_1 = Constraint(model.vehicles, model.planning_horizon, rule=constraint_4_1)
+
+def constraint_4_2(v,t):
+    return sum(model.is_shippped[i,t] * model.vehicle_has_pallet[i,v] for i in model.pallets if model.pallet_size[i] == 2) <= capacity_calculator(v,2)
+model.constraint_4_2 = Constraint(model.vehicles, model.planning_horizon, rule=constraint_4_2)
 
 def constraint_5(i,j,v):
      if i != j:
@@ -75,3 +79,8 @@ def capacity_calculator(v):
             return model.vehicle_capacity_100x120[v]
         else:
             return model.vehicle_capacity_80x120[v]
+        
+
+def constraint_8(i, j):
+    return sum(model.pallet_used_on_order[i,o,j] for o in model.orders if (model.pallet_product_type[i] > j or model.pallet_product_type < j)) <= 0
+model.constraint_8 = Constraint(model.pallets, model.product_type, rule=constraint_8)
