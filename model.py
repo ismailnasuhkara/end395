@@ -36,14 +36,27 @@ model.pallet_product_type = Param(model.pallets, initialize=pallets.set_index('P
 model.vehicle_type = Param(model.vehicles, initialize=pallets.set_index('Vehicle ID')['Vehicle Type'].to_dict(), within=Any, doc="The type of vehicle")
 model.max_trips = Param(initialize=parameters['Value'].iloc[1], doc="The max number of trips allowed to each owned vehicle")
 
-
 # Variables
 model.is_shipped = Var(model.pallets, model.planning_horizon, domain=Binary)
 model.pallet_used_on_order = Var(model.pallets, model.orders, model.product_type, domain=Binary)
 model.vehicle_has_pallet = Var(model.pallets, model.vehicles, domain=Binary)
 model.number_of_trips = Var(model.vehicles, model.planning_horizon, domain=NonNegativeIntegers)
 
+
 # Constraints
+def constraint_3():
+    return sum(1 - sum(model.is_shipped[i,] for t in model.planning_horizon if t >= model.pallet_release_day[i]) for i in model.pallets) <= model.warehouse_storage
+model.constraint_3 = Constraint(rule=constraint_3)
+
+def constraint_4(v,t):
+    return sum(model.is_shippped[i,t] * model.vehicle_has_pallet[i,v] for i in model.pallets) <= capacity_calculator(v,s)
+model.constraint_4 = Constraint(model.vehicles, model.planning_horizon, rule=constraint_4)
+
+def capacity_calculator(v, s):
+        if s == 1:
+            return model.vehicle_capacity_100x120[v]
+        else:
+            return model.vehicle_capacity_80x120[v]
 
 def constraint_1(i):
     return sum(model.is_shipped[i,t] for t in model.planning_horizon) == 1
