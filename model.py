@@ -43,6 +43,16 @@ model.vehicle_has_pallet = Var(model.pallets, model.vehicles, domain=Binary)
 model.number_of_trips = Var(model.vehicles, model.planning_horizon, domain=NonNegativeIntegers)
 
 # Constraints
+def constraint_3():
+    return sum(1 - sum(model.is_shipped[i,] for t in model.planning_horizon if t >= model.pallet_release_day[i]) for i in model.pallets) <= model.warehouse_storage
+model.constraint_3 = Constraint(rule=constraint_3)
 
+def constraint_4(v,t):
+    return sum(model.is_shippped[i,t] * model.vehicle_has_pallet[i,v] for i in model.pallets) <= capacity_calculator(v,s)
+model.constraint_4 = Constraint(model.vehicles, model.planning_horizon, rule=constraint_4)
 
-
+def capacity_calculator(v, s):
+        if s == 1:
+            return model.vehicle_capacity_100x120[v]
+        else:
+            return model.vehicle_capacity_80x120[v]
