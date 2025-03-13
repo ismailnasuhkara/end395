@@ -15,6 +15,7 @@ model.orders = Set(initialize=orders['Order ID'], doc="Set of orders")
 model.product_type = Set(initialize=orders['Product Type'].unique(), doc="Set of product types") 
 model.vehicles = Set(initialize=vehicles["Vehicle ID"], doc="Set of owned vehicles")
 model.rentable = Set(initialize=range(1, 100), doc="Set of rentable vehicles")
+model.vehicle_type = Set(initialize=vehicles["Vehicle Type"].unique(), doc="Set of vehicle types")
 
 # Parameters
 model.products_in_pallet = Param(model.pallets, initialize=pallets.set_index('Pallet ID')['Amount'].to_dict(), doc="Number of products that can be stored in each pallet")
@@ -30,7 +31,11 @@ model.rented_vehicle_cost = Param(model.vehicle_types, initialize=vehicles.set_i
 # Truck = 22, Lorry = 12, Van = 6
 model.vehicle_capacity_100x120 = Param(model.vehicles, initialize=vehicles.set_index('Vehicle ID')['Capacity for pallet type 1'].to_dict(), doc="Capacity of each vehicle type for 100x120 cm pallets")
 # Truck = 33, Lorry = 18, Van = 8
-model.vehicle_capacity_80x120 = Param(model.vehicles, initialize=vehicles.set_index('Vehicle ID')['Capacity for pallet type 2'].to_dict(), doc="Capacity of each vehicle type for 80x120 cm pallets")    
+model.vehicle_capacity_80x120 = Param(model.vehicles, initialize=vehicles.set_index('Vehicle ID')['Capacity for pallet type 2'].to_dict(), doc="Capacity of each vehicle type for 80x120 cm pallets")
+
+model.rented_capacity_100x120 = Param(model.vehicle_type, initialize=vehicles.set_index("Vehicle Type")["Capacity for pallet type 1"].to_dict())
+
+model.rented_capacity_80x120 = Param(model.vehicle_type, initialize=vehicles.set_index("Vehicle Type")["Capacity for pallet type 2"].to_dict())
 model.order_product_type = Param(model.orders, initialize=orders.groupby('Order ID')['Product Type'].apply(list).to_dict(), within=Any, doc="The map of orders listed by product type")
 model.pallet_product_type = Param(model.pallets, initialize=pallets.set_index('Pallet ID')['Product Type'].to_dict(), within=Any, doc="The map of pallets listed by product type")
 model.vehicle_type = Param(model.vehicles, initialize=pallets.set_index('Vehicle ID')['Vehicle Type'].to_dict(), within=Any, doc="The type of vehicle")
@@ -66,24 +71,33 @@ def constraint_3():
 model.constraint_3 = Constraint(rule=constraint_3)
 
 def constraint_4_1(v,t):
-    return sum(model.is_shippped[i,t] * model.vehicle_has_pallet[i,v] for i in model.pallets if model.pallet_size[i] == 1) <= capacity_calculator(v,1)
+    return sum(model.is_shippped[i,t] * model.owned_vehicle_has_pallet[i,v] for i in model.pallets if model.pallet_size[i] == 1) <= owned_capacity_calculator(v,1)
 model.constraint_4_1 = Constraint(model.vehicles, model.planning_horizon, rule=constraint_4_1)
 
 def constraint_4_2(v,t):
-    return sum(model.is_shippped[i,t] * model.vehicle_has_pallet[i,v] for i in model.pallets if model.pallet_size[i] == 2) <= capacity_calculator(v,2)
+    return sum(model.is_shippped[i,t] * model.owned_vehicle_has_pallet[i,v] for i in model.pallets if model.pallet_size[i] == 2) <= owned_capacity_calculator(v,2)
 model.constraint_4_2 = Constraint(model.vehicles, model.planning_horizon, rule=constraint_4_2)
 
-def constraint_5(i,j,v):
-        return (model.owned_vehicle_has_pallet[i,v] * model.owned_vehicle_has_pallet[j,v]) * (model.pallet_size[i] - model.pallet_size[j])
+def constraint_4_3(rv,t):
+     return sum(model.is_shipped[i,t] * model.rented_vehicle_has_pallet[i,rv] for i in model.pallets if model.pallet_size[i] == 1) <= rented_capacity_calculator(rv,1)
+model.constraint_4_3 = Constraint(model.rentable, model.planning_horizon, rule=constraint_4_3)
 
-model.constraint_5 = Constraint(model.pallets, model.pallets, model.vehicles, rule=constraint_5)
+def constraint_4_4(rv,t):
+     return sum(model.is_shipped[i,t] * model.rented_vehicle_has_pallet[i,rv] for i in model.pallets if model.pallet_size[i] == 2) <= rented_capacity_calculator(rv,1)
+model.constraint_4_4 = Constraint(model.rentable, model.planning_horizon, rule=constraint_4_4)
 
-def capacity_calculator(v):
-        if model.vehicles[v]:
-            return model.vehicle_capacity_100x120[v]
-        else:
-            return model.vehicle_capacity_80x120[v]
-        
+def constraint_5_1(i, j, v):
+    return model.owned_vehicle_has_pallet[i, v] * model.owned_vehicle_has_pallet[j, v] * (model.pallet_size[i] - model.pallet_size[j]) == 0
+model.constraint_5_1 = Constraint(model.pallets, model.pallets, model.vehicles, rule=constraint_5_1)
+
+def constraint_5_2(i, j, rv):
+    return model.rented_vehicle_has_pallet[i, rv] * model.rented_vehicle_has_pallet[j, rv] * (model.pallet_size[i] - model.pallet_size[j]) == 0
+model.constraint_5_2 = Constraint(model.pallets, model.pallets, model.rentable, rule=constraint_5_2)
+
+def constraint_6(v,t):
+    return model.number_of_trips[v, t] <= model.max_trips
+model.constraint_6 = Constraint(model.vehicles, model.planning_horizon, rule=constraint_6)
+
 def constraint_7(o,j):
     return sum(model.products_in_pallet[i] * model.pallet_used_on_order[i,o,j] for i in model.pallets) >= model.order_demand[o,j]
 model.constraint_7 = Constraint(model.orders, model.product_type, rule=constraint_7)
@@ -91,3 +105,20 @@ model.constraint_7 = Constraint(model.orders, model.product_type, rule=constrain
 def constraint_8(i, j):
     return sum(model.pallet_used_on_order[i,o,j] for o in model.orders if (model.pallet_product_type[i] > j or model.pallet_product_type < j)) <= 0
 model.constraint_8 = Constraint(model.pallets, model.product_type, rule=constraint_8)
+
+def constraint_9(i, rv):
+     return model.rented_vehicle_has_pallet[i, rv] <= model.is_rented[rv]
+model.constraint_9 = Constraint(model.pallets, model.rentable, rule=constraint_9)
+
+
+def owned_capacity_calculator(v, s):
+        if s == 1:
+            return model.vehicle_capacity_100x120[v]
+        elif s == 2:
+            return model.vehicle_capacity_80x120[v]
+        
+def rented_capacity_calculator(rv, s):
+    if s == 1:
+         return model.rented_vehicle_capacity_100x120[model.rented_type[rv]]
+    elif s == 2:
+         return model.rented_vehicle_capacity_80x120[model.rented_type[rv]]
