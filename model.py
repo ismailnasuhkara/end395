@@ -44,6 +44,18 @@ model.number_of_trips = Var(model.vehicles, model.planning_horizon, domain=NonNe
 
 
 # Constraints
+def constraint_1(i):
+    return sum(model.is_shipped[i,t] for t in model.planning_horizon) == 1
+model.constraint_1 = Constraint(model.pallets, rule=constraint_1)
+
+def constraint_2(i):
+    release_day = model.pallet_release_day[i]
+    if release_day == 1:
+        return Constraint.Feasible
+    else:
+        return sum(model.is_shipped for t in range(1, release_day)) == 0
+model.constraint_2 = Constraint(model.pallets, rule=constraint_2)
+
 def constraint_3():
     return sum(1 - sum(model.is_shipped[i,] for t in model.planning_horizon if t >= model.pallet_release_day[i]) for i in model.pallets) <= model.warehouse_storage
 model.constraint_3 = Constraint(rule=constraint_3)
@@ -57,15 +69,3 @@ def capacity_calculator(v, s):
             return model.vehicle_capacity_100x120[v]
         else:
             return model.vehicle_capacity_80x120[v]
-
-def constraint_1(i):
-    return sum(model.is_shipped[i,t] for t in model.planning_horizon) == 1
-model.constraint_1 = Constraint(model.pallets, rule=constraint_1)
-
-def constraint_2(i):
-    release_day = model.pallet_release_day[i]
-    if release_day == 1:
-        return Constraint.Feasible
-    else:
-        return sum(model.is_shipped for t in range(1, release_day)) == 0
-model.constraint_2 = Constraint(model.pallets, rule=constraint_2)
