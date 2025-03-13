@@ -13,7 +13,6 @@ model.planning_horizon = Set(initialize=range(1, parameters['Value'].iloc[0] + 1
 model.pallets = Set(initialize=pallets['Pallet ID'], doc="Set of pallets")
 model.orders = Set(initialize=orders['Order ID'], doc="Set of orders")
 model.product_type = Set(initialize=orders['Product Type'].unique(), doc="Set of product types") 
-model.product_type = Set(initialize=orders['Product Type'].unique(), doc="Set of product types")
 model.vehicles = Set(initialize=vehicles["Vehicle ID"], doc="Set of owned vehicles")
 
 # Parameters
@@ -69,3 +68,8 @@ def capacity_calculator(v, s):
             return model.vehicle_capacity_100x120[v]
         else:
             return model.vehicle_capacity_80x120[v]
+        
+
+def constraint_8(i, j):
+    return sum(model.pallet_used_on_order[i,o,j] for o in model.orders if (model.pallet_product_type[i] > j or model.pallet_product_type < j)) <= 0
+model.constraint_8 = Constraint(model.pallets, model.product_type, rule=constraint_8)
