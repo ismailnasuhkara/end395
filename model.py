@@ -13,7 +13,6 @@ model.planning_horizon = Set(initialize=range(1, parameters['Value'].iloc[0] + 1
 model.pallets = Set(initialize=pallets['Pallet ID'], doc="Set of pallets")
 model.orders = Set(initialize=orders['Order ID'], doc="Set of orders")
 model.product_type = Set(initialize=orders['Product Type'].unique(), doc="Set of product types") 
-model.product_type = Set(initialize=orders['Product Type'].unique(), doc="Set of product types")
 model.vehicles = Set(initialize=vehicles["Vehicle ID"], doc="Set of owned vehicles")
 
 # Parameters
@@ -61,11 +60,18 @@ def constraint_3():
 model.constraint_3 = Constraint(rule=constraint_3)
 
 def constraint_4(v,t):
-    return sum(model.is_shippped[i,t] * model.vehicle_has_pallet[i,v] for i in model.pallets) <= capacity_calculator(v,s)
+    return sum(model.is_shippped[i,t] * model.vehicle_has_pallet[i,v] for i in model.pallets) <= capacity_calculator(v)
 model.constraint_4 = Constraint(model.vehicles, model.planning_horizon, rule=constraint_4)
 
-def capacity_calculator(v, s):
-        if s == 1:
+def constraint_5(i,j,v):
+     if i != j:
+        return (model.vehicle_has_pallet[i,v] * model.vehicle_has_pallet[j,v]) * (model.pallet_size[i] - model.pallet_size[j])
+     else:
+         return Constraint.Feasible
+model.constraint_5 = Constraint(model.pallets, model.pallets, model.vehicles, rule=constraint_5)
+
+def capacity_calculator(v):
+        if model.vehicles[v]:
             return model.vehicle_capacity_100x120[v]
         else:
             return model.vehicle_capacity_80x120[v]
