@@ -22,7 +22,7 @@ model.pallets = Set(initialize=pallets['Pallet ID'], doc="Set of pallets")
 model.orders = Set(initialize=orders['Order ID'], doc="Set of orders")
 model.product_type = Set(initialize=orders['Product Type'].unique(), doc="Set of product types") 
 model.vehicles = Set(initialize=vehicles["Vehicle ID"], doc="Set of owned vehicles")
-model.rentable = Set(initialize=range(1, 100), doc="Set of rentable vehicles")
+model.rentable = Set(initialize=range(1, 40), doc="Set of rentable vehicles")
 vehicle_type_list = [int(k) for k in list(vehicles["Vehicle Type"].unique())]
 model.vehicle_type = Set(initialize=vehicle_type_list, doc="Set of vehicle types")
 
@@ -74,6 +74,7 @@ model.aux_6 = Var(model.pallets, model.orders, model.product_type, model.plannin
 model.aux_7 = Var(model.pallets, model.orders, model.product_type, model.planning_horizon, model.rentable, domain=Binary)
 model.aux_8 = Var(model.pallets, model.orders, model.product_type, model.planning_horizon, model.vehicles, domain=Binary)
 model.aux_9 = Var(model.pallets, model.orders, model.product_type, model.planning_horizon, model.vehicles, domain=Binary)
+model.aux_10 = Var(model.pallets, model.pallets, model.rentable, model.planning_horizon, domain=Binary)
 
 end_time = time.time()
 print(f"Initialized variables.\nCPU Time: {end_time - start_time} seconds\n")
@@ -94,9 +95,11 @@ end_time = time.time()
 print(f"Initialized objective function.\nCPU Time: {end_time - start_time} seconds\n")
 
 # Constraints
+'''
 def constraint_1(model, i):
-    return sum(model.is_shipped[i,t] for t in model.planning_horizon) == 1
-model.constraint_1 = Constraint(model.pallets, rule=constraint_1)
+    return sum(model.is_shipped[i,t] for t in model.planning_horizon) <= 1
+model.constraint_1 = Constraint(model.pallets, rule=constraint_1)'
+'''
 
 end_time = time.time()
 print(f"Initialized constraint_1.\nCPU Time: {end_time - start_time} seconds\n")
@@ -136,6 +139,15 @@ def rented_capacity_calculator(rv, s):
         return value(model.vehicle_capacity_80x120[val])
 
 
+"""
+inputs = v, t
+sum(model.owned_vehicle_has_pallet[i, v] * model.is_shipped[i, t] for i in model.pallets if model.pallet_size[value(i)] == 1) <= owned_capacity_calculator(v, 1)
+"""
+
+"""
+inputs = v, t
+sum(model.owned_vehicle_has_pallet[i, v] * model.is_shipped[i, t] for i in model.pallets if model.pallet_size[value(i)] == 2) <= owned_capacity_calculator(v, 2)
+"""
 def constraint_4_1(model, t ,v):
     return sum(model.aux_1[i, t, v] for i in model.pallets if model.pallet_size[i] == 1) <= owned_capacity_calculator(v,1)
 model.constraint_4_1 = Constraint(model.planning_horizon, model.vehicles, rule=constraint_4_1)
@@ -203,14 +215,14 @@ print(f"Initialized constraint_4_3.\nCPU Time: {end_time - start_time} seconds\n
 
 def constraint_4_3_1(model, i, t, rv):
     return model.aux_3[i, t, rv] <= model.rented_vehicle_has_pallet[i, rv, t] * value(model.M)
-model.constraint_4_3_1 = Constraint(model.pallets, model.planning_horizon, model.vehicles, rule=constraint_4_3_1)
+model.constraint_4_3_1 = Constraint(model.pallets, model.planning_horizon, model.rentable, rule=constraint_4_3_1)
 
 end_time = time.time()
 print(f"Initialized constraint_4_3_1.\nCPU Time: {end_time - start_time} seconds\n")
 
 def constraint_4_3_2(model, i, t, rv):
     return model.aux_3[i, t, rv] <= model.is_shipped[i, t] * value(model.M)
-model.constraint_4_3_2 = Constraint(model.pallets, model.planning_horizon, model.vehicles, rule=constraint_4_3_2)
+model.constraint_4_3_2 = Constraint(model.pallets, model.planning_horizon, model.rentable, rule=constraint_4_3_2)
 
 end_time = time.time()
 print(f"Initialized constraint_4_3_2.\nCPU Time: {end_time - start_time} seconds\n")
@@ -232,14 +244,14 @@ print(f"Initialized constraint_4_4.\nCPU Time: {end_time - start_time} seconds\n
 
 def constraint_4_4_1(model, i, t, rv):
     return model.aux_4[i, t, rv] <= model.rented_vehicle_has_pallet[i, rv, t] * value(model.M)
-model.constraint_4_4_1 = Constraint(model.pallets, model.planning_horizon, model.vehicles, rule=constraint_4_4_1)
+model.constraint_4_4_1 = Constraint(model.pallets, model.planning_horizon, model.rentable, rule=constraint_4_4_1)
 
 end_time = time.time()
 print(f"Initialized constraint_4_4_1.\nCPU Time: {end_time - start_time} seconds\n")
 
 def constraint_4_4_2(model, i, t, rv):
     return model.aux_4[i, t, rv] <= model.is_shipped[i, t] * value(model.M)
-model.constraint_4_4_2 = Constraint(model.pallets, model.planning_horizon, model.vehicles, rule=constraint_4_4_2)
+model.constraint_4_4_2 = Constraint(model.pallets, model.planning_horizon, model.rentable, rule=constraint_4_4_2)
 
 end_time = time.time()
 print(f"Initialized constraint_4_4_2.\nCPU Time: {end_time - start_time} seconds\n")
@@ -292,14 +304,42 @@ model.constraint_5_1_3 = Constraint(model.pallets, model.pallets, model.vehicles
 end_time = time.time()
 print(f"Initialized constraint_5_1_3.\nCPU Time: {end_time - start_time} seconds\n")
 
-'''
+"""
 def constraint_5_2(model, i, j, rv, t):
     if i < j:
         return model.rented_vehicle_has_pallet[i, rv, t] * model.rented_vehicle_has_pallet[j, rv, t] * (model.pallet_size[i] - model.pallet_size[j]) == 0
     else:
         return Constraint.Skip
-model.constraint_5_2 = Constraint(model.pallets, model.pallets, model.rentable, model.planning_horizon, rule=constraint_5_2)
-'''
+model.constraint_5_2 = Constraint(model.pallets, model.pallets, model.rentable, model.planning_horizon, rule=constraint_5_2)"
+"""
+
+
+def constraint_5_2_1(model, i, j, rv, t):
+    return model.aux_10[i, j, rv, t] <= model.rented_vehicle_has_pallet[i, rv, t]
+model.constraint_5_2_1 = Constraint(model.pallets, model.pallets, model.rentable, model.planning_horizon, rule=constraint_5_2_1)
+
+def constraint_5_2_2(model, i, j, rv, t):
+    return model.aux_10[i, j, rv, t] <= model.rented_vehicle_has_pallet[j, rv, t]
+model.constraint_5_2_2 = Constraint(model.pallets, model.pallets, model.rentable, model.planning_horizon, rule=constraint_5_2_2)
+
+def constraint_5_2_3(model, i, j, rv, t):
+    return model.aux_10[i, j, rv, t] >= model.rented_vehicle_has_pallet[i, rv, t] + model.rented_vehicle_has_pallet[j, rv, t] - 1
+model.constraint_5_2_3 = Constraint(model.pallets, model.pallets, model.rentable, model.planning_horizon, rule=constraint_5_2_3)
+
+def constraint_5_2_4(model, i, j, rv, t):
+    M = 1000  # Choose a sufficiently large constant
+    return (value(model.pallet_size[i]) - value(model.pallet_size[j])) <= value(model.M) * (1 - model.aux_10[i, j, rv, t])
+model.constraint_5_2_4 = Constraint(model.pallets, model.pallets, model.rentable, model.planning_horizon, rule=constraint_5_2_4)
+
+def constraint_5_2_5(model, i, j, rv, t):
+    M = 1000
+    return (value(model.pallet_size[j]) - value(model.pallet_size[i])) <= value(model.M) * (1 - model.aux_10[i, j, rv, t])
+model.constraint_5_2_5 = Constraint(model.pallets, model.pallets, model.rentable, model.planning_horizon, rule=constraint_5_2_5)
+
+
+
+
+
 
 
 def constraint_6(model, v, t):
@@ -464,8 +504,21 @@ model.constraint_11_4_3 = Constraint(model.pallets, model.orders, model.product_
 end_time = time.time()
 print(f"Initialized constraint_11_4_3.\nCPU Time: {end_time - start_time} seconds\n")
 
-print("Done so far")
+def constraint_11_5(model, i):
+    return sum(model.owned_vehicle_has_pallet[i, v] for v in model.vehicles) + sum(model.rented_vehicle_has_pallet[i, rv, t] for rv in model.rentable for t in model.planning_horizon) == sum(model.is_shipped[i, t] for t in model.planning_horizon)
+model.constraint_11_5 = Constraint(model.pallets, rule=constraint_11_5)
 
+end_time = time.time()
+print(f"Initialized constraint_11_5.\nCPU Time: {end_time - start_time} seconds\n")
+
+def constraint_12(model, i, o, j):
+    if model.pallet_used_on_order[i, o, j] == 1:
+        return sum(model.is_shipped[i,t] * value(t) for t in model.planning_horizon) <= value(model.order_due_date[o])
+    else:
+        return Constraint.Feasible
+model.constraint_12 = Constraint(model.pallets, model.orders, model.product_type, rule=constraint_12)
+
+print("Done so far")
 
 solver = SolverFactory('gurobi')
 solver.solve(model, tee=True)
@@ -473,3 +526,7 @@ solver.solve(model, tee=True)
 end_time = time.time()
 print(f"\nCPU Time: {end_time - start_time} seconds\n")
 
+with open("solution.txt", "w") as f:
+    for v in model.component_objects(Var, active=True):
+        for index in v:
+            f.write(f"{v.name}[{index}] = {v[index].value}\n")
