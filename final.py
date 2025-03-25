@@ -5,10 +5,12 @@ import time
 
 start_time = time.time()
 
-orders = pd.read_excel("ProjectPart1-Scenario3.xlsx", sheet_name="Orders")
-pallets = pd.read_excel("ProjectPart1-Scenario3.xlsx", sheet_name="Pallets")
-vehicles = pd.read_excel("ProjectPart1-Scenario3.xlsx", sheet_name="Vehicles")
-parameters = pd.read_excel("ProjectPart1-Scenario3.xlsx", sheet_name="Parameters")
+orders = pd.read_excel("Part2-Scenario1.xlsx", sheet_name="Orders")
+pallets = pd.read_excel("Part2-Scenario1.xlsx", sheet_name="Pallets")
+vehicles = pd.read_excel("Part2-Scenario1.xlsx", sheet_name="Vehicles")
+parameters = pd.read_excel("Part2-Scenario1.xlsx", sheet_name="Parameters")
+loading_types = pd.read_excel("Part2-Scenario1.xlsx", sheet_name="LoadingTypes")
+
 
 end_time = time.time()
 print(f"Extracted data.\nCPU Time: {end_time - start_time} seconds\n")
@@ -24,6 +26,9 @@ model.vehicles = Set(initialize=vehicles["Vehicle ID"], doc="Set of owned vehicl
 model.rentable = Set(initialize=range(1, 40), doc="Set of rentable vehicles")
 vehicle_type_list = [int(k) for k in list(vehicles["Vehicle Type"].unique())]
 model.vehicle_type = Set(initialize=vehicle_type_list, doc="Set of vehicle types")
+model.type_1_loading_types = Set(initialize=loading_types[loading_types["VehicleType"] == 1]["LoadingType"])
+model.type_2_loading_types = Set(initialize=loading_types[loading_types["VehicleType"] == 2]["LoadingType"])
+model.type_3_loading_types = Set(initialize=loading_types[loading_types["VehicleType"] == 3]["LoadingType"])
 
 end_time = time.time()
 print(f"Initialized sets.\nCPU Time: {end_time - start_time} seconds\n")
@@ -49,6 +54,13 @@ model.order_product_type = Param(model.orders, initialize=orders.groupby('Order 
 model.pallet_product_type = Param(model.pallets, initialize=pallets.set_index('Pallet ID')['Product Type'].to_dict(), within=Any, doc="The map of pallets listed by product type", mutable=False)
 model.vehicle_types = Param(model.vehicles, initialize=vehicles.set_index('Vehicle ID')['Vehicle Type'].to_dict(), within=Any, doc="The type of vehicle", mutable=False)
 model.max_trips = Param(initialize=parameters['Value'].iloc[1], doc="The max number of trips allowed to each owned vehicle per day", mutable=False)
+model.vehicle_1_pallet_1_cap = Param(model.type_1_loading_types, initialize=loading_types.set_index("LoadingType")["CapacityForPalletSize1"])
+model.vehicle_1_pallet_2_cap = Param(model.type_1_loading_types, initialize=loading_types.set_index("LoadingType")["CapacityForPalletSize2"])
+model.vehicle_2_pallet_1_cap = Param(model.type_2_loading_types, initialize=loading_types.set_index("LoadingType")["CapacityForPalletSize1"])
+model.vehicle_2_pallet_2_cap = Param(model.type_2_loading_types, initialize=loading_types.set_index("LoadingType")["CapacityForPalletSize2"])
+model.vehicle_3_pallet_1_cap = Param(model.type_3_loading_types, initialize=loading_types.set_index("LoadingType")["CapacityForPalletSize1"])
+model.vehicle_3_pallet_2_cap = Param(model.type_3_loading_types, initialize=loading_types.set_index("LoadingType")["CapacityForPalletSize2"])
+
 model.M = Param(initialize=100, mutable=False)
 
 end_time = time.time()
@@ -63,6 +75,8 @@ model.is_rented = Var(model.rentable, domain=Binary)
 model.rented_type = Var(model.rentable, domain=NonNegativeIntegers, bounds=(min(model.vehicle_type), max(model.vehicle_type)), initialize=1)
 model.rented_vehicle_has_pallet = Var(model.pallets, model.rentable, model.planning_horizon, domain=Binary)
 model.rented_vehicle_trip = Var(model.rentable, model.planning_horizon, domain=NonNegativeIntegers)
+model.owned_vehicle_loading_type = Var(model.vehicles, model.loading_types, domain=NonNegativeIntegers, bounds=)
+model.rented_vehicle_loading_type = Var(model.rentable, model.loading_types, domain=Binary)
 
 model.aux_1 = Var(model.pallets, model.planning_horizon, model.vehicles, domain=Binary)
 model.aux_2 = Var(model.pallets, model.planning_horizon, model.vehicles, domain=Binary)
@@ -147,191 +161,16 @@ sum(model.owned_vehicle_has_pallet[i, v] * model.is_shipped[i, t] for i in model
 inputs = v, t
 sum(model.owned_vehicle_has_pallet[i, v] * model.is_shipped[i, t] for i in model.pallets if model.pallet_size[value(i)] == 2) <= owned_capacity_calculator(v, 2)
 """
-def constraint_4_1(model, t ,v):
-    return sum(model.aux_1[i, t, v] for i in model.pallets if value(model.pallet_size[i]) == 1) <= owned_capacity_calculator(v,1)
-model.constraint_4_1 = Constraint(model.planning_horizon, model.vehicles, rule=constraint_4_1)
 
-end_time = time.time()
-print(f"Initialized constraint_4_1.\nCPU Time: {end_time - start_time} seconds\n")
-
-def constraint_4_1_1(model, i, t, v):
-    return model.aux_1[i, t, v] <= model.owned_vehicle_has_pallet[i, v]
-model.constraint_4_1_1 = Constraint(model.pallets, model.planning_horizon, model.vehicles, rule=constraint_4_1_1)
-
-end_time = time.time()
-print(f"Initialized constraint_4_1_1.\nCPU Time: {end_time - start_time} seconds\n")
-
-def constraint_4_1_2(model, i, t, v):
-    return model.aux_1[i, t, v] <= model.is_shipped[i, t]
-model.constraint_4_1_2 = Constraint(model.pallets, model.planning_horizon, model.vehicles, rule=constraint_4_1_2)
-
-end_time = time.time()
-print(f"Initialized constraint_4_1_2.\n\nCPU Time: {end_time - start_time} seconds\n")
-
-def constraint_4_1_3(model, i, t, v):
-    return model.aux_1[i, t, v] >= model.is_shipped[i, t] + model.owned_vehicle_has_pallet[i, v] - 1
-model.constraint_4_1_3 = Constraint(model.pallets, model.planning_horizon, model.vehicles, rule=constraint_4_1_3)
-
-end_time = time.time()
-print(f"Initialized constraint_4_1_3.\nCPU Time: {end_time - start_time} seconds\n")
+def constraint_4_REMASTERED(model, v, t):
+    if value(model.vehicle_types) == 1:
+        
+    print("AAAAAAAAAAAAAAAAAAAAAAA")
 
 
-def constraint_4_2(model, v, t):
-    return sum(model.aux_2[i, t, v] for i in model.pallets if model.pallet_size[i] == 2) <= owned_capacity_calculator(v,2)
-model.constraint_4_2 = Constraint(model.vehicles, model.planning_horizon, rule=constraint_4_2)
+#CONSTRAINT 4 HAS PERISHED.
 
-end_time = time.time()
-print(f"Initialized constraint_4_2.\nCPU Time: {end_time - start_time} seconds\n")
-
-def constraint_4_2_1(model, i, t, v):
-    return model.aux_2[i, t, v] <= model.owned_vehicle_has_pallet[i, v]
-model.constraint_4_2_1 = Constraint(model.pallets, model.planning_horizon, model.vehicles, rule=constraint_4_2_1)
-
-end_time = time.time()
-print(f"Initialized constraint_4_2_1.\nCPU Time: {end_time - start_time} seconds\n")
-
-def constraint_4_2_2(model, i, t, v):
-    return model.aux_2[i, t, v] <= model.is_shipped[i, t]
-model.constraint_4_2_2 = Constraint(model.pallets, model.planning_horizon, model.vehicles, rule=constraint_4_2_2)
-
-end_time = time.time()
-print(f"Initialized constraint_4_2_2.\nCPU Time: {end_time - start_time} seconds\n")
-
-def constraint_4_2_3(model, i, t, v):
-    return model.aux_2[i, t, v] >= model.is_shipped[i, t] + model.owned_vehicle_has_pallet[i, v] - 1
-model.constraint_4_2_3 = Constraint(model.pallets, model.planning_horizon, model.vehicles, rule=constraint_4_2_3)
-
-end_time = time.time()
-print(f"Initialized constraint_4_2_3.\nCPU Time: {end_time - start_time} seconds\n")
-
-
-def constraint_4_3(model, rv, t):
-     return sum(model.aux_3[i, t, rv] for i in model.pallets if model.pallet_size[i] == 1) <= rented_capacity_calculator(rv,1)
-model.constraint_4_3 = Constraint(model.rentable, model.planning_horizon, rule=constraint_4_3)
-
-end_time = time.time()
-print(f"Initialized constraint_4_3.\nCPU Time: {end_time - start_time} seconds\n")
-
-def constraint_4_3_1(model, i, t, rv):
-    return model.aux_3[i, t, rv] <= model.rented_vehicle_has_pallet[i, rv, t]
-model.constraint_4_3_1 = Constraint(model.pallets, model.planning_horizon, model.rentable, rule=constraint_4_3_1)
-
-end_time = time.time()
-print(f"Initialized constraint_4_3_1.\nCPU Time: {end_time - start_time} seconds\n")
-
-def constraint_4_3_2(model, i, t, rv):
-    return model.aux_3[i, t, rv] <= model.is_shipped[i, t]
-model.constraint_4_3_2 = Constraint(model.pallets, model.planning_horizon, model.rentable, rule=constraint_4_3_2)
-
-end_time = time.time()
-print(f"Initialized constraint_4_3_2.\nCPU Time: {end_time - start_time} seconds\n")
-
-def constraint_4_3_3(model, i, t, rv):
-    return model.aux_3[i, t, rv] >= model.rented_vehicle_has_pallet[i, rv, t] + model.is_shipped[i, t] - 1
-model.constraint_4_3_3 = Constraint(model.pallets, model.planning_horizon, model.rentable, rule=constraint_4_3_3)
-
-end_time = time.time()
-print(f"Initialized constraint_4_3_3.\nCPU Time: {end_time - start_time} seconds\n")
-
-
-def constraint_4_4(model, rv, t):
-     return sum(model.aux_4[i, t, rv] for i in model.pallets if model.pallet_size[i] == 2) <= rented_capacity_calculator(rv,1)
-model.constraint_4_4 = Constraint(model.rentable, model.planning_horizon, rule=constraint_4_4)
-
-end_time = time.time()
-print(f"Initialized constraint_4_4.\nCPU Time: {end_time - start_time} seconds\n")
-
-def constraint_4_4_1(model, i, t, rv):
-    return model.aux_4[i, t, rv] <= model.rented_vehicle_has_pallet[i, rv, t]
-model.constraint_4_4_1 = Constraint(model.pallets, model.planning_horizon, model.rentable, rule=constraint_4_4_1)
-
-end_time = time.time()
-print(f"Initialized constraint_4_4_1.\nCPU Time: {end_time - start_time} seconds\n")
-
-def constraint_4_4_2(model, i, t, rv):
-    return model.aux_4[i, t, rv] <= model.is_shipped[i, t]
-model.constraint_4_4_2 = Constraint(model.pallets, model.planning_horizon, model.rentable, rule=constraint_4_4_2)
-
-end_time = time.time()
-print(f"Initialized constraint_4_4_2.\nCPU Time: {end_time - start_time} seconds\n")
-
-def constraint_4_4_3(model, i, t, rv):
-    return model.aux_4[i, t, rv] >= model.rented_vehicle_has_pallet[i, rv, t] + model.is_shipped[i, t] - 1
-model.constraint_4_4_3 = Constraint(model.pallets, model.planning_horizon, model.rentable, rule=constraint_4_4_3)
-
-end_time = time.time()
-print(f"Initialized constraint_4_4_3.\nCPU Time: {end_time - start_time} seconds\n")
-
-
-def constraint_5_1(model, i, j, v):
-    if i < j:
-        return model.aux_5[i, j, v] * (value(model.pallet_size[i]) - value(model.pallet_size[j])) == 0
-    else:
-        return Constraint.Skip
-model.constraint_5_1 = Constraint(model.pallets, model.pallets, model.vehicles, rule=constraint_5_1)
-
-end_time = time.time()
-print(f"Initialized constraint_5_1.\nCPU Time: {end_time - start_time} seconds\n")
-
-def constraint_5_1_1(model, i, j, v):
-    if i < j:
-        return model.aux_5[i, j, v] <= model.owned_vehicle_has_pallet[i, v]
-    else:
-        return Constraint.Skip
-model.constraint_5_1_1 = Constraint(model.pallets, model.pallets, model.vehicles, rule=constraint_5_1_1)
-
-end_time = time.time()
-print(f"Initialized constraint_5_1_1.\nCPU Time: {end_time - start_time} seconds\n")
-
-def constraint_5_1_2(model, i, j, v):
-    if i < j:
-        return model.aux_5[i, j, v] <= model.owned_vehicle_has_pallet[j, v]
-    else:
-        return Constraint.Skip
-model.constraint_5_1_2 = Constraint(model.pallets, model.pallets, model.vehicles, rule=constraint_5_1_2)
-
-end_time = time.time()
-print(f"Initialized constraint_5_1_2.\nCPU Time: {end_time - start_time} seconds\n")
-
-def constraint_5_1_3(model, i, j, v):
-    if i < j:
-        return model.aux_5[i, j, v] >= model.owned_vehicle_has_pallet[i, v] + model.owned_vehicle_has_pallet[j, v] - 1
-    else:
-        return Constraint.Skip
-model.constraint_5_1_3 = Constraint(model.pallets, model.pallets, model.vehicles, rule=constraint_5_1_3)
-
-end_time = time.time()
-print(f"Initialized constraint_5_1_3.\nCPU Time: {end_time - start_time} seconds\n")
-
-def constraint_5_2(model, i, j, rv, t):
-    if i < j:
-        return model.aux_10[i,j,rv,t] * (model.pallet_size[i] - model.pallet_size[j]) == 0
-    else:
-        return Constraint.Skip
-model.constraint_5_2 = Constraint(model.pallets, model.pallets, model.rentable, model.planning_horizon, rule=constraint_5_2)
-
-def constraint_5_2_1(model, i, j, rv, t):
-    return model.aux_10[i, j, rv, t] <= model.rented_vehicle_has_pallet[i, rv, t]
-model.constraint_5_2_1 = Constraint(model.pallets, model.pallets, model.rentable, model.planning_horizon, rule=constraint_5_2_1)
-
-def constraint_5_2_2(model, i, j, rv, t):
-    return model.aux_10[i, j, rv, t] <= model.rented_vehicle_has_pallet[j, rv, t]
-model.constraint_5_2_2 = Constraint(model.pallets, model.pallets, model.rentable, model.planning_horizon, rule=constraint_5_2_2)
-
-def constraint_5_2_3(model, i, j, rv, t):
-    return model.aux_10[i, j, rv, t] >= model.rented_vehicle_has_pallet[i, rv, t] + model.rented_vehicle_has_pallet[j, rv, t] - 1
-model.constraint_5_2_3 = Constraint(model.pallets, model.pallets, model.rentable, model.planning_horizon, rule=constraint_5_2_3)
-
-def constraint_5_2_4(model, i, j, rv, t):
-    M = 1000  # Choose a sufficiently large constant
-    return (value(model.pallet_size[i]) - value(model.pallet_size[j])) <= value(model.M) * (1 - model.aux_10[i, j, rv, t])
-model.constraint_5_2_4 = Constraint(model.pallets, model.pallets, model.rentable, model.planning_horizon, rule=constraint_5_2_4)
-
-def constraint_5_2_5(model, i, j, rv, t):
-    M = 1000
-    return (value(model.pallet_size[j]) - value(model.pallet_size[i])) <= value(model.M) * (1 - model.aux_10[i, j, rv, t])
-model.constraint_5_2_5 = Constraint(model.pallets, model.pallets, model.rentable, model.planning_horizon, rule=constraint_5_2_5)
-
+#CONSTRAINT 5 HAS PERISHED.
 
 def constraint_6(model, v, t):
     return model.number_of_trips[v, t] <= model.max_trips
