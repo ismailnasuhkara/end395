@@ -5,10 +5,10 @@ import time
 
 start_time = time.time()
 
-orders = pd.read_excel("ProjectPart1-Scenario1.xlsx", sheet_name="Orders")
-pallets = pd.read_excel("ProjectPart1-Scenario1.xlsx", sheet_name="Pallets")
-vehicles = pd.read_excel("ProjectPart1-Scenario1.xlsx", sheet_name="Vehicles")
-parameters = pd.read_excel("ProjectPart1-Scenario1.xlsx", sheet_name="Parameters")
+orders = pd.read_excel("ProjectPart1-Scenario3.xlsx", sheet_name="Orders")
+pallets = pd.read_excel("ProjectPart1-Scenario3.xlsx", sheet_name="Pallets")
+vehicles = pd.read_excel("ProjectPart1-Scenario3.xlsx", sheet_name="Vehicles")
+parameters = pd.read_excel("ProjectPart1-Scenario3.xlsx", sheet_name="Parameters")
 
 end_time = time.time()
 print(f"Extracted data.\nCPU Time: {end_time - start_time} seconds\n")
