@@ -332,7 +332,7 @@ def rented_capacity_calculator(model, v):
             case 1:
                 return value(model.vehicle_1_pallet_1_cap[l] + model.vehicle_1_pallet_2_cap[l])
             case 2:
-                return value(model.vehicle_2_pallet_1_cap[l] + model.vehicle_3_pallet_2_cap[l])
+                return value(model.vehicle_2_pallet_1_cap[l] + model.vehicle_2_pallet_2_cap[l])
             case 3:
                 return value(model.vehicle_3_pallet_1_cap[l] + model.vehicle_3_pallet_2_cap[l])
 
