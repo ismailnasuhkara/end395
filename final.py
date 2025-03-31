@@ -75,12 +75,12 @@ model.is_rented = Var(model.rentable, domain=Binary)
 model.rented_type = Var(model.rentable, domain=NonNegativeIntegers, bounds=(min(model.vehicle_type), max(model.vehicle_type)), initialize=1)
 model.rented_vehicle_has_pallet = Var(model.pallets, model.rentable, model.planning_horizon, domain=Binary)
 model.rented_vehicle_trip = Var(model.rentable, model.planning_horizon, domain=NonNegativeIntegers)
-model.owned_vehicle_1_loading_type = Var(model.vehicles, domain=NonNegativeIntegers, bounds=(min(model.type_1_loading_types), max(model.type_1_loading_types)), initialize=0)
-model.owned_vehicle_2_loading_type = Var(model.vehicles, domain=NonNegativeIntegers, bounds=(min(model.type_2_loading_types), max(model.type_2_loading_types)), initialize=0)
-model.owned_vehicle_3_loading_type = Var(model.vehicles, domain=NonNegativeIntegers, bounds=(min(model.type_3_loading_types), max(model.type_3_loading_types)), initialize=0)
-model.rented_vehicle_1_loading_type = Var(model.vehicles, domain=NonNegativeIntegers, bounds=(min(model.type_1_loading_types), max(model.type_1_loading_types)), initialize=0)
-model.rented_vehicle_2_loading_type = Var(model.vehicles, domain=NonNegativeIntegers, bounds=(min(model.type_2_loading_types), max(model.type_2_loading_types)), initialize=0)
-model.rented_vehicle_3_loading_type = Var(model.vehicles, domain=NonNegativeIntegers, bounds=(min(model.type_3_loading_types), max(model.type_3_loading_types)), initialize=0)
+model.owned_vehicle_2_loading_type = Var(model.vehicles, domain=NonNegativeIntegers, bounds=(min(model.type_2_loading_types), max(model.type_2_loading_types)), initialize=1)
+model.owned_vehicle_1_loading_type = Var(model.vehicles, domain=NonNegativeIntegers, bounds=(min(model.type_1_loading_types), max(model.type_1_loading_types)), initialize=1)
+model.owned_vehicle_3_loading_type = Var(model.vehicles, domain=NonNegativeIntegers, bounds=(min(model.type_3_loading_types), max(model.type_3_loading_types)), initialize=1)
+model.rented_vehicle_1_loading_type = Var(model.vehicles, domain=NonNegativeIntegers, bounds=(min(model.type_1_loading_types), max(model.type_1_loading_types)), initialize=1)
+model.rented_vehicle_2_loading_type = Var(model.vehicles, domain=NonNegativeIntegers, bounds=(min(model.type_2_loading_types), max(model.type_2_loading_types)), initialize=1)
+model.rented_vehicle_3_loading_type = Var(model.vehicles, domain=NonNegativeIntegers, bounds=(min(model.type_3_loading_types), max(model.type_3_loading_types)), initialize=1)
 
 
 model.aux_1 = Var(model.pallets, model.planning_horizon, model.vehicles, domain=Binary)
@@ -211,13 +211,13 @@ end_time = time.time()
 print(f"Initialized constraint_4_6.\nCPU Time: {end_time - start_time} seconds\n")
 
 def constraint_5_1_REMASTERED(model, v, t):
-    if value(model.vehicle_type[v]) == 1:
+    if value(model.vehicle_types[v]) == 1:
         l = model.owned_vehicle_1_loading_type[v]
         return (sum(model.owned_vehicle_has_pallet[i,v,t] for i in model.pallets if value(model.pallet_size[i] == 1)) <= model.vehicle_1_pallet_1_cap[l])
-    if value(model.vehicle_type[v]) == 2:
+    if value(model.vehicle_types[v]) == 2:
         l = model.owned_vehicle_2_loading_type[v]
         return (sum(model.owned_vehicle_has_pallet[i,v,t] for i in model.pallets if value(model.pallet_size[i] == 1)) <= model.vehicle_2_pallet_1_cap[l])
-    if value(model.vehicle_type[v]) == 3:
+    if value(model.vehicle_types[v]) == 3:
         l = model.owned_vehicle_3_loading_type[v]
         return (sum(model.owned_vehicle_has_pallet[i,v,t] for i in model.pallets if value(model.pallet_size[i] == 1)) <= model.vehicle_3_pallet_1_cap[l])
 model.constraint_5_1_REMASTERED = Constraint(model.vehicles, model.planning_horizon, rule=constraint_5_1_REMASTERED)
@@ -226,13 +226,13 @@ end_time = time.time()
 print(f"Initialized constraint_5_1.\nCPU Time: {end_time - start_time} seconds\n")
 
 def constraint_5_2_REMASTERED(model, v, t):
-    if value(model.vehicle_type[v]) == 1:
+    if value(model.vehicle_types[v]) == 1:
         l = model.owned_vehicle_1_loading_type[v]
         return (sum(model.owned_vehicle_has_pallet[i,v,t] for i in model.pallets if value(model.pallet_size[i] == 2)) <= model.vehicle_1_pallet_2_cap[l])
-    if value(model.vehicle_type[v]) == 2:
+    if value(model.vehicle_types[v]) == 2:
         l = model.owned_vehicle_2_loading_type[v]
         return (sum(model.owned_vehicle_has_pallet[i,v,t] for i in model.pallets if value(model.pallet_size[i] == 2)) <= model.vehicle_2_pallet_2_cap[l])
-    if value(model.vehicle_type[v]) == 3:
+    if value(model.vehicle_types[v]) == 3:
         l = model.owned_vehicle_3_loading_type[v]
         return (sum(model.owned_vehicle_has_pallet[i,v,t] for i in model.pallets if value(model.pallet_size[i] == 2)) <= model.vehicle_3_pallet_2_cap[l])
 model.constraint_5_2_REMASTERED = Constraint(model.vehicles, model.planning_horizon, rule=constraint_5_2_REMASTERED)
@@ -241,13 +241,13 @@ end_time = time.time()
 print(f"Initialized constraint_5_2.\nCPU Time: {end_time - start_time} seconds\n")
 
 def constraint_5_3_REMASTERED(model, v, t):
-    if value(model.vehicle_type[v]) == 1:
+    if value(model.vehicle_types[v]) == 1:
         l = model.owned_vehicle_1_loading_type[v]
         return (sum(model.rented_vehicle_has_pallet[i,v,t] for i in model.pallets if value(model.pallet_size[i] == 1)) <= model.vehicle_1_pallet_1_cap[l])
-    if value(model.vehicle_type[v]) == 2:
+    if value(model.vehicle_types[v]) == 2:
         l = model.owned_vehicle_2_loading_type[v]
         return (sum(model.rented_vehicle_has_pallet[i,v,t] for i in model.pallets if value(model.pallet_size[i] == 1)) <= model.vehicle_2_pallet_1_cap[l])
-    if value(model.vehicle_type[v]) == 3:
+    if value(model.vehicle_types[v]) == 3:
         l = model.owned_vehicle_3_loading_type[v]
         return (sum(model.rented_vehicle_has_pallet[i,v,t] for i in model.pallets if value(model.pallet_size[i] == 1)) <= model.vehicle_3_pallet_1_cap[l])
 model.constraint_5_3_REMASTERED = Constraint(model.vehicles, model.planning_horizon, rule=constraint_5_3_REMASTERED)
@@ -256,13 +256,13 @@ end_time = time.time()
 print(f"Initialized constraint_5_3.\nCPU Time: {end_time - start_time} seconds\n")
 
 def constraint_5_4_REMASTERED(model, v, t):
-    if value(model.vehicle_type[v]) == 1:
+    if value(model.vehicle_types[v]) == 1:
         l = model.owned_vehicle_1_loading_type[v]
         return (sum(model.rented_vehicle_has_pallet[i,v,t] for i in model.pallets if value(model.pallet_size[i] == 2)) <= model.vehicle_1_pallet_2_cap[l])
-    if value(model.vehicle_type[v]) == 2:
+    if value(model.vehicle_types[v]) == 2:
         l = model.owned_vehicle_2_loading_type[v]
         return (sum(model.rented_vehicle_has_pallet[i,v,t] for i in model.pallets if value(model.pallet_size[i] == 2)) <= model.vehicle_2_pallet_2_cap[l])
-    if value(model.vehicle_type[v]) == 3:
+    if value(model.vehicle_types[v]) == 3:
         l = model.owned_vehicle_3_loading_type[v]
         return (sum(model.rented_vehicle_has_pallet[i,v,t] for i in model.pallets if value(model.pallet_size[i] == 2)) <= model.vehicle_3_pallet_2_cap[l])
 model.constraint_5_4_REMASTERED = Constraint(model.vehicles, model.planning_horizon, rule=constraint_5_4_REMASTERED)
@@ -315,7 +315,7 @@ model.constraint_10 = Constraint(model.pallets, model.orders, model.product_type
 
 end_time = time.time()
 print(f"Initialized constraint_10.\nCPU Time: {end_time - start_time} seconds\n")
-
+'''
 def owned_capacity_calculator(model, v):
     l = model.owned_vehicle_1_loading_type[v]
     match value(model.vehicle_types[v]):
@@ -394,7 +394,7 @@ model.constraint_11_3_3 = Constraint(model.pallets, model.orders, model.product_
 
 end_time = time.time()
 print(f"Initialized constraint_11_3_3.\nCPU Time: {end_time - start_time} seconds\n")
-
+'''
 def constraint_11_5(model, i, t):
     return sum(model.owned_vehicle_has_pallet[i,v,t] for v in model.vehicles) + sum(model.rented_vehicle_has_pallet[i, rv, t] for rv in model.rentable for t in model.planning_horizon) == sum(model.is_shipped[i, t] for t in model.planning_horizon)
 model.constraint_11_5 = Constraint(model.pallets, model.planning_horizon, rule=constraint_11_5)
@@ -402,12 +402,12 @@ model.constraint_11_5 = Constraint(model.pallets, model.planning_horizon, rule=c
 end_time = time.time()
 print(f"Initialized constraint_11_5.\nCPU Time: {end_time - start_time} seconds\n")
 
-def constraint_12(model, i, o, j):
+def constraint_12(model, i, o, j, t):
     # When pallet_used_on_order[i,o,j] is 1, the shipping day (weighted sum) must be <= order_due_date[o]
     # When pallet_used_on_order[i,o,j] is 0, the constraint is relaxed using a big-M term.
-    return sum(value(t) * model.is_shipped[i, t] for t in model.planning_horizon) <= value(model.order_due_date[o]) + value(model.M) * (1 - model.pallet_used_on_order[i,o,j])
+    return value(t) * model.is_shipped[i, t] <= value(model.order_due_date[o]) + value(model.M) * (1 - model.pallet_used_on_order[i,o,j])
 
-model.constraint_12 = Constraint(model.pallets, model.orders, model.product_type, rule=constraint_12)
+model.constraint_12 = Constraint(model.pallets, model.orders, model.product_type, model.planning_horizon, rule=constraint_12)
 
 end_time = time.time()
 print(f"Done so far.\nCPU Time: {end_time - start_time} seconds")
